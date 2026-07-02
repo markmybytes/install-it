@@ -14,11 +14,6 @@ function opKey(suffix: string): string {
   return `op${suffix.charAt(0).toUpperCase() + suffix.slice(1)}`
 }
 
-const { scrollContainer } = useScrollPosition(
-  'matchRule',
-  record => !!record?.to.match(/^\/match-rules\/(create|\d+\/edit)$/),
-  () => ruleStore.ruleSets
-)
 </script>
 
 <template>
@@ -30,8 +25,7 @@ const { scrollContainer } = useScrollPosition(
     />
 
     <div
-      ref="scrollContainer"
-      class="flex min-h-48 grow flex-col overflow-y-scroll rounded-md p-1.5 shadow-md"
+      class="scrollable flex min-h-48 grow flex-col overflow-y-scroll rounded-md p-1.5 shadow-md"
     >
       <div
         v-for="rs in ruleStore.ruleSets"

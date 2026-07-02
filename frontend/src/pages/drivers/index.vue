@@ -49,12 +49,6 @@ function confirmDelete() {
       modal.value.deleteId = null
     })
 }
-
-const { scrollContainer } = useScrollPosition(
-  'driverGroup',
-  record => !!record?.to.match(/^\/drivers\/(create|\d+\/edit)$/),
-  () => groupStore.groups
-)
 </script>
 
 <template>
@@ -96,8 +90,7 @@ const { scrollContainer } = useScrollPosition(
     </PageHeader>
 
     <div
-      ref="scrollContainer"
-      class="flex min-h-48 grow flex-col overflow-y-scroll rounded-md p-1.5 shadow-md"
+      class="scrollable flex min-h-48 grow flex-col overflow-y-scroll rounded-md p-1.5 shadow-md"
     >
       <template v-for="g in filteredGroups" :key="g.id">
         <div
