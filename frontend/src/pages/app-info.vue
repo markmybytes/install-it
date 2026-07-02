@@ -135,7 +135,9 @@ function checkUpdate() {
         <div class="grid grid-cols-7 gap-4">
           <div class="col-span-2">{{ $t('labelBuildType') }}</div>
 
-          <div class="col-span-5">{{ $t(buildTypeKey(info.app.buildType)) }}</div>
+          <div class="col-span-5">
+            {{ info.app.buildType === 'na' ? $t('labelNA') : $t(buildTypeKey(info.app.buildType)) }}
+          </div>
         </div>
 
         <div class="grid grid-cols-7 gap-4">
