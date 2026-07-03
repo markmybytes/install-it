@@ -111,9 +111,10 @@ function openInspect(id: number) {
     >
       <template v-for="g in filteredGroups" :key="g.id">
         <div
-          class="driver-card m-1 cursor-pointer rounded-lg border border-gray-200 px-4 py-3 shadow-sm transition-colors hover:border-half-baked-300"
+          class="driver-card m-1 rounded-lg border border-gray-200 px-4 py-3 shadow-sm transition-colors hover:border-half-baked-300"
           :class="{
-            'select-none': sortEnabled
+            'select-none': sortEnabled,
+            'cursor-pointer': !sortEnabled
           }"
           role="button"
           tabindex="0"
