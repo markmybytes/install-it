@@ -26,20 +26,21 @@ export function useReorderable(
   const enabled = ref(false)
   const sortable = shallowRef<Sortable | null>(null)
 
-  const merged: Sortable.Options = {
-    handle: '.drag-handle',
-    animation: 200,
-    easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
-    ghostClass: 'sortable-ghost',
-    dragClass: 'sortable-drag',
-    ...options
-  }
-
   onMounted(() => {
     if (!container.value) {
       return
     }
-    sortable.value = new Sortable(container.value, { ...merged, disabled: !enabled.value })
+    sortable.value = new Sortable(container.value, {
+      ...{
+        handle: '.drag-handle',
+        animation: 200,
+        easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        ...options
+      },
+      disabled: !enabled.value
+    })
   })
 
   watch(enabled, val => {
