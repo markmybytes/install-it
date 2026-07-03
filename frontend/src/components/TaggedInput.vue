@@ -36,14 +36,14 @@ function removeTag(index: number) {
       size="sm"
       @keydown.backspace="
         () => {
-          if (input.value.length == 0) {
+          if (input.length == 0) {
             removeTag(tags.length - 1)
           }
         }
       "
       @keydown.enter="
         (event: KeyboardEvent) => {
-          if (input.value != '') {
+          if (input != '') {
             event.preventDefault()
           }
           pushTag()
