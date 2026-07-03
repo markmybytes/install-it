@@ -124,13 +124,6 @@ function openInspect(id: number) {
         >
           <div class="flex items-center justify-between gap-4">
             <div class="flex min-w-0 items-center gap-2">
-              <div
-                v-show="sortEnabled"
-                class="drag-handle shrink-0 p-2 text-gray-400 hover:text-gray-600"
-              >
-                <Icon icon="mdi:drag-horizontal" class="text-xl" />
-              </div>
-
               <UBadge size="sm" :style="`background-color: var(--color-${g.type})`">
                 &nbsp;
               </UBadge>
@@ -189,6 +182,13 @@ function openInspect(id: number) {
                   </span>
                 </div>
               </div>
+            </div>
+
+            <div
+              v-show="sortEnabled"
+              class="drag-handle shrink-0 p-2 text-gray-400 hover:text-gray-600"
+            >
+              <Icon icon="mdi:drag-horizontal" class="text-xl" />
             </div>
 
             <div v-show="!sortEnabled" class="flex shrink-0 items-center gap-1.5" @click.stop>
