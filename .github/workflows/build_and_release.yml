@@ -130,7 +130,7 @@ jobs:
           name: updater-${{ matrix.architecture }}
           path: dist/updater.${{ matrix.build-name }}.exe
 
-  draft-release:
+  release:
     needs: [build, build-updater]
     runs-on: ubuntu-latest
 
