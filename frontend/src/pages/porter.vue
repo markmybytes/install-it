@@ -121,7 +121,7 @@ function handleImport() {
     <div class="flex flex-col gap-y-3">
       <h2 class="mb-1 font-medium">{{ $t('labelExportToFile') }}</h2>
 
-      <div class="flex gap-x-6">
+      <div class="flex items-center gap-x-6">
         <label class="w-24 content-center text-gray-900">
           {{ $t('labelExportDestination') }}
         </label>
@@ -203,7 +203,7 @@ function handleImport() {
       </div>
 
       <!-- from file -->
-      <div v-if="importInput.from == 'file'" class="flex gap-x-6">
+      <div v-if="importInput.from == 'file'" class="flex items-center gap-x-6">
         <label class="w-24 content-center text-gray-900">
           {{ $t('file') }}
         </label>
