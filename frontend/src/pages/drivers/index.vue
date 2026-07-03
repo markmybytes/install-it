@@ -2,6 +2,8 @@
 import DriverInspectModal from '@/components/DriverInspectModal.vue'
 import { storage } from '@/wailsjs/go/models'
 import * as groupStorage from '@/wailsjs/go/storage/DriverGroupStorage'
+import type Sortable from 'sortablejs'
+import { useReorderable } from '@/composables/useReorderable'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -14,15 +16,12 @@ const [route, router] = [useRoute(), useRouter()]
 
 const groupStore = useDriverGroupStore()
 
-const drag = ref<{ reordering: boolean; overId: number | null }>({
-  reordering: false,
-  overId: null
-})
-
 const modal = ref<{ inspectId: number | null; deleteId: number | null }>({
   inspectId: null,
   deleteId: null
 })
+
+const { enabled: sortEnabled } = useReorderable('container', { onEnd: handleReorderEnd })
 
 async function reloadGroups() {
   return groupStorage
@@ -36,6 +35,50 @@ async function reloadGroups() {
 const filteredGroups = computed(() =>
   groupStore.groups.filter(g => route.query.type == undefined || g.type == route.query.type)
 )
+
+function confirmDelete() {
+  if (modal.value.deleteId === null) return
+  groupStorage
+    .Remove(modal.value.deleteId)
+    .then(() => reloadGroups())
+    .catch(() => {
+      toast.add({ title: t('toastDeleteFailed'), color: 'error' })
+    })
+    .finally(() => {
+      modal.value.deleteId = null
+    })
+}
+
+function openInspect(id: number) {
+  if (sortEnabled.value) {
+    return
+  }
+  modal.value.inspectId = id
+}
+
+function handleReorderEnd(evt: Sortable.SortableEvent) {
+  if (evt.oldIndex === evt.newIndex) return
+  if (evt.oldIndex == null || evt.newIndex == null) return
+
+  const sourceItem = filteredGroups.value[evt.oldIndex]
+  const targetItem = filteredGroups.value[evt.newIndex]
+  if (!sourceItem || !targetItem) return
+
+  const sourceGlobalIdx = groupStore.groups.findIndex(g => g.id === sourceItem.id)
+  const targetGlobalIdx = groupStore.groups.findIndex(g => g.id === targetItem.id)
+  if (sourceGlobalIdx === -1 || targetGlobalIdx === -1) return
+
+  let moveBehindIdx = targetGlobalIdx
+  if (sourceGlobalIdx <= targetGlobalIdx) moveBehindIdx -= 1
+
+  groupStorage
+    .MoveBehind(sourceItem.id, moveBehindIdx)
+    .then(() => reloadGroups())
+    .catch(() => {
+      reloadGroups()
+      toast.add({ title: t('toastSaveFailed'), color: 'error' })
+    })
+}
 </script>
 
 <template>
@@ -78,64 +121,31 @@ const filteredGroups = computed(() =>
 
     <div
       v-scroll-restore="'drivers-list'"
-      class="flex min-h-48 grow flex-col overflow-y-scroll rounded-md p-1.5 shadow-md"
+      ref="container"
+      class="scrollable flex min-h-48 grow flex-col overflow-y-scroll rounded-md p-1.5 shadow-md"
     >
       <template v-for="g in filteredGroups" :key="g.id">
         <div
           class="driver-card m-1 cursor-pointer rounded-lg border border-gray-200 px-4 py-3 shadow-sm transition-colors hover:border-half-baked-300"
           :class="{
-            'select-none': drag.reordering,
-            'border-half-baked-500 ring-1 ring-half-baked-500': drag.overId === g.id
+            'select-none': sortEnabled
           }"
           role="button"
           tabindex="0"
-          :draggable="drag.reordering"
-          @click="!drag.reordering && (modal.inspectId = g.id)"
-          @keydown.enter.prevent="!drag.reordering && (modal.inspectId = g.id)"
-          @keydown.space.prevent="!drag.reordering && (modal.inspectId = g.id)"
-          @dragstart="
-            event => {
-              if (!drag.reordering) {
-                return event.preventDefault()
-              }
-
-              event.dataTransfer!.setData('id', g.id.toString())
-              const fullIdx = groupStore.groups.findIndex(g2 => g2.id === g.id)
-              event.dataTransfer!.setData('index', fullIdx.toString())
-            }
-          "
-          @dragover.prevent="drag.overId = g.id"
-          @dragleave="
-            event => {
-              const el = event.currentTarget as HTMLElement
-              if (!el.contains(event.relatedTarget as Node)) {
-                drag.overId = null
-              }
-            }
-          "
-          @drop="
-            event => {
-              drag.overId = null
-
-              // async function will cause event.dataTransfer to lose data
-              const sourceId = parseInt(event.dataTransfer!.getData('id'))
-              const sourceIdx = parseInt(event.dataTransfer!.getData('index'))
-              const targetIdx = groupStore.groups.findIndex(g2 => g2.id === g.id)
-              let moveBehindIdx = targetIdx
-              if (sourceIdx <= targetIdx) {
-                moveBehindIdx -= 1
-              }
-              groupStorage
-                .MoveBehind(sourceId, moveBehindIdx)
-                .then(() => reloadGroups())
-                .catch(() => {
-                  toast.add({ title: $t('toastSaveFailed'), color: 'error' })
-                })
-            }
-          "
+          :data-id="g.id.toString()"
+          @click="openInspect(g.id)"
+          @keydown.enter.prevent="openInspect(g.id)"
+          @keydown.space.prevent="openInspect(g.id)"
         >
           <div class="flex items-center justify-between gap-4">
             <div class="flex min-w-0 items-center gap-2">
+              <div
+                v-show="sortEnabled"
+                class="drag-handle shrink-0 p-2 text-gray-400 hover:text-gray-600"
+              >
+                <Icon icon="mdi:drag-horizontal" class="text-xl" />
+              </div>
+
               <UBadge size="sm" :style="`background-color: var(--color-${g.type})`">
                 &nbsp;
               </UBadge>
@@ -196,7 +206,7 @@ const filteredGroups = computed(() =>
               </div>
             </div>
 
-            <div class="flex shrink-0 items-center gap-1.5" @click.stop>
+            <div v-show="!sortEnabled" class="flex shrink-0 items-center gap-1.5" @click.stop>
               <RouterLink :to="`/drivers/${g.id}/edit`" :title="$t('edit')">
                 <UButton color="neutral" variant="outline" size="sm" class="h-8 w-8">
                   <Icon icon="mdi:pencil" class="text-base" />
@@ -253,23 +263,23 @@ const filteredGroups = computed(() =>
     </div>
 
     <div class="flex justify-end gap-x-3">
-      <div v-show="filteredGroups.length > 1">
+      <div v-show="route.query.type !== undefined && filteredGroups.length > 1">
         <UButton
           type="button"
           size="md"
           class="text-white"
           :style="
-            drag.reordering
+            sortEnabled
               ? '--btn-color: var(--color-apple-green-800); animation: var(--animate-blink-75);'
               : '--btn-color: #D9BD68'
           "
           @click="
             () => {
-              drag.reordering = !drag.reordering
+sortEnabled = !sortEnabled
             }
           "
         >
-          {{ drag.reordering ? $t('view') : $t('fieldOrder') }}
+          {{ sortEnabled ? $t('view') : $t('fieldOrder') }}
         </UButton>
       </div>
 
@@ -335,9 +345,13 @@ const filteredGroups = computed(() =>
 
     <DriverInspectModal
       :group-id="modal.inspectId"
-      @close="modal.inspectId = null"
+      @close="
+        () => {
+          modal.inspectId = null
+        }
+      "
       @edit="
-        id => {
+        (id: number) => {
           modal.inspectId = null
           router.push(`/drivers/${id}/edit`)
         }
@@ -345,3 +359,36 @@ const filteredGroups = computed(() =>
     />
   </div>
 </template>
+
+<style scoped>
+.drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+:deep(.sortable-ghost) {
+  opacity: 0.4;
+  background-color: #e5e7eb !important;
+  border: 2px dashed #9ca3af !important;
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06) !important;
+}
+
+:deep(.sortable-ghost) > * {
+  visibility: hidden;
+}
+
+:deep(.sortable-drag) {
+  opacity: 1 !important;
+  background-color: #ffffff !important;
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.15),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  transform: scale(1.02) rotate(1deg) !important;
+  z-index: 50 !important;
+  cursor: grabbing !important;
+}
+</style>
