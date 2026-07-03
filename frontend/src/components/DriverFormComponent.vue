@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import DriverInputModal from '@/components/DriverInputModal.vue'
-import { ExecutableExists } from '@/wailsjs/go/main/App'
+import DriverEditor from '@/components/DriverEditor.vue'
 import { storage } from '@/wailsjs/go/models'
 import * as groupStorage from '@/wailsjs/go/storage/DriverGroupStorage'
-import { computed, ref, toRaw, useTemplateRef, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -11,28 +10,19 @@ const props = defineProps<{ id?: number }>()
 
 const { t } = useI18n()
 
-const $route = useRoute()
+const [route, router] = [useRoute(), useRouter()]
 
-function categoryKey(type: string): string {
-  return `category${type.charAt(0).toUpperCase() + type.slice(1)}`
-}
-const $router = useRouter()
 const toast = useToast()
-
-const inputModal = useTemplateRef('inputModal')
 
 const groupStore = useDriverGroupStore()
 
-// Create computed source for dynamic group lookup
 const sourceGroup = computed(
   () =>
     groupStore.groups.find(g => g.id === props.id) ??
     new storage.DriverGroup({
       type:
         storage.DriverType[
-          (
-            $route.query.type as string | undefined
-          )?.toUpperCase() as keyof typeof storage.DriverType
+          (route.query.type as string | undefined)?.toUpperCase() as keyof typeof storage.DriverType
         ] ?? storage.DriverType.NETWORK,
       name: '',
       drivers: []
@@ -44,27 +34,75 @@ const { data: group, reset } = useEditor({
   warnOnUnsavedLeave: true
 })
 
-// Track drivers that don't exist on system
-const notFoundDrivers = ref<number[]>([])
+const ui = ref<{
+  expanded: Set<number>
+  nextTempId: number
+}>({
+  expanded: new Set(),
+  nextTempId: -1
+})
 
-const findNotExists = (drivers: Array<storage.Driver>) =>
-  Promise.all(
-    drivers.map(d => ExecutableExists(d.path).then(exist => ({ id: d.id, exist: exist })))
-  ).then(results => {
-    return results
-      .map(result => (result.exist ? undefined : result.id))
-      .filter(v => v !== undefined)
-  })
+function addDriver() {
+  const id = ui.value.nextTempId
+  ui.value.nextTempId -= 1
+  group.value.drivers.push(
+    new storage.Driver({
+      id,
+      type: group.value.type,
+      name: '',
+      path: '',
+      flags: [],
+      minExeTime: 5,
+      allowRtCodes: [],
+      incompatibles: []
+    })
+  )
+  ui.value.expanded.add(id)
+  ui.value.expanded = new Set(ui.value.expanded)
+}
 
-watch(
-  () => group.value.drivers,
-  newDrivers => findNotExists(newDrivers).then(ids => (notFoundDrivers.value = ids)),
-  { immediate: true }
-)
+function removeDriver(id: number) {
+  group.value.drivers = group.value.drivers.filter(d => d.id !== id)
+  ui.value.expanded.delete(id)
+  ui.value.expanded = new Set(ui.value.expanded)
+}
+
+function toggleDriver(id: number) {
+  const next = new Set(ui.value.expanded)
+  if (next.has(id)) {
+    next.delete(id)
+  } else {
+    next.add(id)
+  }
+  ui.value.expanded = next
+}
+
+const allExpanded = computed(() => {
+  if (group.value.drivers.length === 0) return false
+  return group.value.drivers.every(d => ui.value.expanded.has(d.id))
+})
+
+function toggleAll() {
+  if (allExpanded.value) {
+    ui.value.expanded = new Set()
+  } else {
+    ui.value.expanded = new Set(group.value.drivers.map(d => d.id))
+  }
+}
 
 function handleSubmit() {
+  if (!group.value.name?.trim()) {
+    toast.add({ title: t('toastGroupNameRequired'), color: 'warning' })
+    return
+  }
+
   if (group.value.drivers.length == 0) {
     toast.add({ title: t('toastAddDriverRequired'), color: 'warning' })
+    return
+  }
+
+  if (group.value.drivers.some(d => !d.path?.trim())) {
+    toast.add({ title: t('toastPathRequired'), color: 'warning' })
     return
   }
 
@@ -77,7 +115,7 @@ function handleSubmit() {
         return reset()
       })
       .then(() => {
-        $router.back()
+        router.back()
       })
   }
 
@@ -87,9 +125,8 @@ function handleSubmit() {
       .then(handleSuccess)
       .catch(reason => toast.add({ title: reason.toString(), color: 'error' }))
   } else {
-    const updateGroup = toRaw(group.value)
     groupStorage
-      .Update(updateGroup)
+      .Update(group.value)
       .then(handleSuccess)
       .catch(reason => toast.add({ title: reason.toString(), color: 'error' }))
   }
@@ -98,182 +135,117 @@ function handleSubmit() {
 
 <template>
   <form
-    class="mx-auto flex h-full max-w-full flex-col justify-center gap-y-8 overflow-y-auto lg:max-w-2xl xl:max-w-4xl"
+    class="mx-auto flex h-full max-w-full flex-col gap-y-5 overflow-y-scroll lg:max-w-2xl xl:max-w-4xl"
     autocomplete="off"
     @submit.prevent="handleSubmit"
   >
-    <div class="flex gap-x-3 px-1">
-      <div class="w-32">
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend text-sm">{{ $t('fieldDriverType') }}</legend>
+    <div class="flex gap-4">
+      <div class="w-48 shrink-0">
+        <label class="mb-1 block text-xs font-bold tracking-wider text-gray-500 uppercase">
+          {{ $t('fieldDriverType') }} <span class="text-red-500">*</span>
+        </label>
 
-          <USelect
-            v-model="group.type"
-            name="type"
-            class="w-full"
-            :items="
-              Object.values(storage.DriverType).map(type => ({
-                label: $t(categoryKey(type)),
-                value: type
-              }))
-            "
-            required
-          />
-        </fieldset>
+        <USelect
+          v-model="group.type"
+          name="type"
+          class="w-full"
+          :items="
+            Object.values(storage.DriverType).map(type => ({
+              label: $t(`category${type.charAt(0).toUpperCase() + type.slice(1)}`),
+              value: type
+            }))
+          "
+          required
+        />
       </div>
 
-      <div class="grow">
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend text-sm">{{ $t('name') }}</legend>
+      <div class="flex-1">
+        <label class="mb-1 block text-xs font-bold tracking-wider text-gray-500 uppercase">
+          {{ $t('name') }} <span class="text-red-500">*</span>
+        </label>
 
-          <UInput v-model="group.name" type="text" class="w-full" required />
-        </fieldset>
+        <UInput v-model="group.name" type="text" class="w-full" required />
       </div>
     </div>
 
-    <div>
-      <label class="flex w-full cursor-pointer items-center select-none">
-        <UCheckbox v-model="group.mutuallyExclusive" class="me-1.5" />
-        {{ $t('fieldMutuallyExclusive') }}
-      </label>
+    <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <label class="flex cursor-pointer items-start gap-3">
+        <UCheckbox v-model="group.mutuallyExclusive" class="mt-1" />
 
-      <p class="text-hint text-xs">{{ $t('descMutuallyExclusive') }}</p>
-    </div>
+        <div>
+          <span class="block text-xs font-bold text-gray-800 xl:text-sm">{{
+            $t('fieldMutuallyExclusive')
+          }}</span>
 
-    <fieldset class="fieldset">
-      <legend class="fieldset-legend text-sm">{{ $t('fieldDriver') }}</legend>
-
-      <div>
-        <div class="max-h-[40vh] overflow-y-auto">
-          <div class="grid-rows grid text-sm">
-            <div class="grid grid-cols-10 gap-2 border-y py-1.5">
-              <div class="col-span-2">{{ $t('name') }}</div>
-
-              <div class="col-span-3">{{ $t('path') }}</div>
-
-              <div class="col-span-2">{{ $t('fieldArgument') }}</div>
-
-              <div class="col-span-2">{{ $t('fieldOther') }}</div>
-            </div>
-
-            <div v-if="group.drivers.length == 0" class="py-1 text-center last:border-b">N/A</div>
-
-            <div
-              v-for="(d, i) in group.drivers"
-              v-else
-              :key="d.id"
-              class="grid grid-cols-10 items-center gap-2 border-b py-1.5 text-xs"
-              :class="{ 'bg-lime-50': d.id === 0 }"
-            >
-              <div class="col-span-2">
-                <p class="line-clamp-2 break-all">
-                  {{ d.name }}
-                </p>
-              </div>
-
-              <div class="col-span-3">
-                <p
-                  class="line-clamp-2 font-mono break-all"
-                  :class="{ 'text-red-600': notFoundDrivers.includes(d.id) }"
-                >
-                  {{ d.path }}
-                </p>
-              </div>
-
-              <div class="col-span-2">
-                <p class="line-clamp-2 break-all">
-                  {{ d.flags.join(', ') }}
-                </p>
-              </div>
-
-              <div class="col-span-2 flex gap-x-1">
-                <span
-                  v-show="d.incompatibles.length > 0"
-                  class="inline-block max-h-5 rounded-xs bg-yellow-300 p-0.5"
-                  :title="$t('labelIncompatibleWith')"
-                >
-                  <Icon icon="mdi:source-merge" />
-                </span>
-
-                <span
-                  v-show="d.allowRtCodes.length > 0"
-                  class="inline-block max-h-5 rounded-xs bg-blue-300 p-0.5"
-                  :title="$t('fieldAllowedExitCode')"
-                >
-                  <Icon icon="mdi:numeric-0-box-outline" />
-                </span>
-              </div>
-
-              <div>
-                <div class="flex gap-x-2">
-                  <button type="button" :title="$t('edit')" @click="inputModal?.show(d)">
-                    <Icon icon="mdi:pencil" class="size-4" />
-                  </button>
-
-                  <button type="button" :title="$t('delete')" @click="group.drivers.splice(i, 1)">
-                    <Icon icon="mdi:trash-can" class="size-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <p class="text-hint">
-            {{ $t('descDriverGroup') }}
-          </p>
+          <p class="mt-0.5 text-xs text-gray-500">{{ $t('descMutuallyExclusive') }}</p>
         </div>
+      </label>
+    </div>
 
-        <div class="flex justify-end gap-x-3">
-          <UButton type="button" class="px-2" color="primary" @click="inputModal?.show()">
-            <Icon icon="mdi:plus-box" />
+    <div class="flex flex-col gap-3">
+      <div class="flex items-center justify-between gap-2">
+        <label class="block text-xs font-bold tracking-wider text-gray-500 uppercase">
+          {{ $t('fieldDriver') }}
+        </label>
+
+        <div class="flex items-center gap-2">
+          <UButton
+            v-if="group.drivers.length > 0"
+            type="button"
+            color="neutral"
+            variant="outline"
+            size="sm"
+            @click="toggleAll"
+          >
+            <Icon
+              :icon="allExpanded ? 'mdi:unfold-less-horizontal' : 'mdi:unfold-more-horizontal'"
+              class="mr-1 text-xs xl:text-sm"
+            />
+            {{ allExpanded ? $t('labelCollapseAll') : $t('labelExpandAll') }}
+          </UButton>
+
+          <UButton type="button" color="primary" size="sm" @click="addDriver">
+            <Icon icon="mdi:plus-circle-outline" class="mr-1 text-xs xl:text-sm" />
+            {{ $t('labelAddDriver') }}
           </UButton>
         </div>
       </div>
-    </fieldset>
 
-    <div class="flex h-8 gap-x-5">
+      <div
+        v-if="group.drivers.length === 0"
+        class="flex flex-col items-center rounded-lg border border-dashed border-gray-300 bg-white py-10 text-center text-gray-400"
+      >
+        <Icon icon="mdi:package-variant" class="mb-2 text-4xl opacity-50" />
+
+        <span class="text-xs font-medium xl:text-sm">{{ $t('msgNoDriversInGroup') }}</span>
+      </div>
+
+      <DriverEditor
+        v-for="(d, i) in group.drivers"
+        :key="d.id"
+        v-model:driver="group.drivers[i]!"
+        :index="i"
+        :is-new="d.id < 0"
+        :expanded="ui.expanded.has(d.id)"
+        @remove="removeDriver"
+        @toggle="toggleDriver"
+      />
+    </div>
+
+    <div class="mt-4 flex shrink-0 gap-4 border-t border-gray-200 pt-4">
       <UButton
         type="button"
-        class="grow justify-center"
         color="neutral"
         variant="outline"
-        style="--btn-color: var(--color-gray-100)"
+        class="flex-1 justify-center text-sm"
         @click="$router.back()"
       >
         {{ $t('back') }}
       </UButton>
 
-      <UButton type="submit" class="grow justify-center" color="secondary">
+      <UButton type="submit" color="secondary" class="flex-1 justify-center text-sm">
         {{ $t('save') }}
       </UButton>
     </div>
   </form>
-
-  <DriverInputModal
-    ref="inputModal"
-    @submit="
-      newDriver => {
-        console.log(newDriver)
-        if (newDriver.id) {
-          group.drivers = group.drivers.map(d => (d.id == newDriver.id ? newDriver : d))
-        } else {
-          group.drivers.push({
-            ...newDriver,
-            id: 0
-          })
-
-          console.table(toRaw(group))
-        }
-        inputModal?.hide()
-      }
-    "
-  ></DriverInputModal>
 </template>
-
-<style scoped>
-legend:has(+ input:required, + select:required):after,
-legend:has(+ div > input:required):after {
-  content: ' *';
-  color: red;
-}
-</style>

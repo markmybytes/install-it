@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { TriggerNativeUpdate } from '@/wailsjs/go/update/Updater'
 import { Quit } from '@/wailsjs/runtime/runtime'
-import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import { marked } from 'marked'
 import { computed, ref, watch } from 'vue'
 
 defineProps<{ currentVersion: string }>()
@@ -96,11 +96,13 @@ watch(
               {{ $t('labelUpdateInfo') }}
             </h1>
 
+            <!-- eslint-disable vue/no-v-html -->
             <div
               id="release-notes"
               class="rounded-lg border px-1"
               v-html="parsedNotes || `<i>${$t('msgNoUpdateInfo')}</i>`"
             ></div>
+            <!-- eslint-enable vue/no-v-html -->
           </div>
 
           <hr />

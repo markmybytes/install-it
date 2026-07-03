@@ -3,9 +3,7 @@ import { useRoute } from 'vue-router'
 
 const $route = useRoute()
 
-const params = $route.params as { id: string }
-
-const id = parseInt(Array.isArray(params.id) ? params.id[0] : params.id)
+const id = parseInt(($route.params as { id: string }).id)
 </script>
 
 <template>

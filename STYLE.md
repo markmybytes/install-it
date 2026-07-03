@@ -126,6 +126,25 @@ Flex or grid layout combined with Tailwind gap utilities (`gap-x-2`, `gap-y-3`).
     <div class="grid grid-cols-12 gap-1">
 ```
 
+### Layout Breakpoints
+
+This is a Wails desktop app. The window minimum is `640x480` (see `main.go`); no enforced upper bound.
+
+Layout uses `md:` and `xl:` only. `sm:` and `lg:` are skipped.
+
+| Breakpoint | Width | Role |
+|---|---|---|
+| _(default)_ | 640–767px | Compact base — the min window size is 640 |
+| `md:` | ≥768px | Intermediate — also the default window size (`main.go: Width: 768, Height: 576`) |
+| `xl:` | ≥1280px | Full desktop — generous spacing, multi-column |
+
+Why these two:
+
+- `sm:` (≥640px) is moot because the min size is 640 — `sm:` would be always-on.
+- `lg:` (≥1024px) is skipped to avoid a fourth state; the gap between `md:` and `xl:` covers the common laptop range in one step.
+
+This section covers **layout** only — flex direction, grid columns, sidebar visibility, modal width, show/hide of elements. Font-size scaling, padding density, and container widths are tracked separately and not yet documented.
+
 ### Wails Bindings
 
 Import from `@/wailsjs/go/<package>/<Struct>`. All bindings return promises.
@@ -163,14 +182,6 @@ Flat camelCase keys. No nesting, no dots. Prefix describes **what the string is*
 | `toast` | Toast notification messages | `toastSaved`, `toastNoUpdate` |
 | `tool` | System utility/tool names | `toolDeviceManager`, `toolBluetooth` |
 | `warn` | Warning messages | `warnDbNoDrivers` |
-
-Dynamic keys (status values, operator enums, hardware parts) use a helper function — never backtick template literals in Vue template `{{ }}`:
-
-```typescript
-function hwKey(part: string): string {
-  return `hw${part.charAt(0).toUpperCase() + part.slice(1)}`
-}
-```
 
 ### Pinia Stores
 
@@ -246,6 +257,7 @@ EnumBind: []interface{}{
 - Promise chains (`.then().catch()`) used for Wails binding calls
 - Types inline unless shared across files (then in `types/`)
 - Flex/grid + Tailwind gap utilities for layout
+- Layout uses `md:` and `xl:` only; `sm:` and `lg:` are skipped
 
 **Backend (Go):**
 - No CGO introduced

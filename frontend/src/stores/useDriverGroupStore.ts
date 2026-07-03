@@ -26,6 +26,6 @@ export default defineStore('driverGroup', () => {
     groups,
     notFoundDrivers,
     isAllDriversExist: (g: storage.DriverGroup) =>
-      g.drivers.flatMap(d => d.id).every(id => !notFoundDrivers.value.includes(id))
+      g.drivers.map(d => d.id).every(id => !notFoundDrivers.value.includes(id))
   }
 })

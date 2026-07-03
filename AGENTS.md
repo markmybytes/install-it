@@ -30,9 +30,6 @@ cd frontend && npm run format
 
 # Frontend type-check only
 cd frontend && npm run type-check
-
-# i18n sync (after editing locale files)
-cd frontend && npm run i18n-sync
 ```
 
 ## Architecture
@@ -65,7 +62,7 @@ cd frontend && npm run i18n-sync
 | `components/` | Reusable Vue components |
 | `composables/` | Vue composables |
 | `stores/` | Pinia stores |
-| `i18n/` | Locale files (sync with `npm run i18n-sync`) |
+| `i18n/` | Locale files |
 | `types/` | TypeScript type definitions |
 | `utils/` | Frontend utilities |
 

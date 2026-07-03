@@ -11,7 +11,6 @@
     "type-check": "vue-tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write src/",
-    "i18n-sync": "node ./src/i18n/sync.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

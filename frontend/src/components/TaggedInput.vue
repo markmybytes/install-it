@@ -8,8 +8,11 @@ const tags = defineModel<Array<string>>({ default: [] })
 const input = ref<string>('')
 
 function pushTag() {
-  if (input.value.trim()) {
-    tags.value.push(input.value.trim())
+  const value = input.value.trim()
+  if (value) {
+    if (!tags.value.some(t => t.toLowerCase() === value.toLowerCase())) {
+      tags.value.push(value)
+    }
     input.value = ''
   }
 }
@@ -23,9 +26,7 @@ function removeTag(index: number) {
   <div class="flex flex-wrap gap-1 p-1">
     <UButton v-for="(tag, i) in tags" :key="tag" size="sm" type="button" @click="removeTag(i)">
       {{ tag }}
-      <Icon v-if="i < tags.length - 1" icon="mdi:close" class="h-6 w-6" />
-
-      <Icon v-else icon="mdi:backspace" class="h-6 w-6" />
+      <Icon icon="mdi:close" class="h-6 w-6" />
     </UButton>
 
     <UInput
@@ -35,20 +36,19 @@ function removeTag(index: number) {
       size="sm"
       @keydown.backspace="
         () => {
-          if (input.length == 0) {
+          if (input.value.length == 0) {
             removeTag(tags.length - 1)
           }
         }
       "
       @keydown.enter="
         (event: KeyboardEvent) => {
-          if (input != '') {
+          if (input.value != '') {
             event.preventDefault()
           }
           pushTag()
         }
       "
-      @focusout="pushTag"
     />
   </div>
 </template>
