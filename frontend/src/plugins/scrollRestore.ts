@@ -101,3 +101,9 @@ export default {
     })
   }
 }
+
+declare module 'vue' {
+  export interface GlobalDirectives {
+    vScrollRestore: typeof vScrollRestore
+  }
+}
