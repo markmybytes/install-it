@@ -1,38 +1,36 @@
 import type { App, Directive } from 'vue'
 import type { Router } from 'vue-router'
 
-/**
- * Scroll restoration plugin.
- *
- * A self-contained Vue plugin that:
- *   1. Registers the `v-scroll-restore` directive (tag a scrollable element
- *      with a unique app-wide ID).
- *   2. Hooks the router's `beforeResolve` to snapshot each tagged element's
- *      scroll position into `history.state` on forward navigations only.
- *   3. The directive restores from `history.state` on mount.
- *
- * Restore semantics: on a back/forward navigation (`popstate`), the snapshot
- * is skipped so the destination's saved positions survive in `history.state`.
- * On a forward navigation, the new page's elements start at scrollTop=0 unless
- * a position was previously saved under their ID (e.g. after a round-trip
- * through another route).
- *
- * Tag IDs MUST be unique across the app — positions are keyed by the string
- * passed to `v-scroll-restore="'…'"`.
- *
- * Usage:
- *   // main.ts
- *   app.use(scrollRestore, { router })
- *
- *   // component
- *   <div v-scroll-restore="'app-sidebar'" class="overflow-y-auto h-screen">
- */
-
 const SCROLL_STATE_KEY = '__scrollPositions'
 
 type ScrollPositions = Record<string, { top: number; left: number }>
 
-// Exported so the directive can be unit-tested in isolation.
+// Tracks active containers to avoid expensive document.querySelectorAll scans on route changes.
+const activeElements = new Set<HTMLElement>()
+
+function tryRestore(el: HTMLElement, id: string) {
+  if (el.dataset.restored === 'true') return
+
+  const state = history.state as Record<string, unknown> | null
+  const positions = state?.[SCROLL_STATE_KEY] as ScrollPositions | undefined
+  const saved = positions?.[id]
+
+  if (!saved) {
+    el.dataset.restored = 'true'
+    return
+  }
+
+  const isScrollable = el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth
+  const isTargetZero = saved.top === 0 && saved.left === 0
+
+  // Apply immediately if layout heights are computed, or if target is the top baseline.
+  if (isScrollable || isTargetZero) {
+    el.scrollTop = saved.top
+    el.scrollLeft = saved.left
+    el.dataset.restored = 'true'
+  }
+}
+
 export const vScrollRestore: Directive<HTMLElement, string> = {
   mounted(el, binding) {
     const id = binding.value
@@ -41,19 +39,19 @@ export const vScrollRestore: Directive<HTMLElement, string> = {
       return
     }
 
-    // Tag the element so the snapshot sweep in `install` can find it
-    // without depending on a CSS class (which would tie identity to styling).
     el.setAttribute('data-scroll-id', id)
+    el.dataset.restored = 'false'
+    activeElements.add(el)
 
-    const state = history.state as Record<string, unknown> | null
-    const positions = state?.[SCROLL_STATE_KEY] as ScrollPositions | undefined
+    tryRestore(el, id)
+  },
 
-    if (positions?.[id]) {
-      el.scrollTop = positions[id].top
-      el.scrollLeft = positions[id].left
-    }
-    // No saved position for this id → leave at default. A forward navigation
-    // starts the new page at scrollTop=0, which is what we want.
+  updated(el, binding) {
+    tryRestore(el, binding.value)
+  },
+
+  unmounted(el) {
+    activeElements.delete(el)
   }
 }
 
@@ -66,35 +64,29 @@ export default {
 
     app.directive('scroll-restore', vScrollRestore)
 
-    // `popstate` fires on back/forward navigation. Vue Router's `beforeResolve`
-    // also fires for those, but we must NOT overwrite the destination route's
-    // saved scroll positions when the user is popping the history stack.
-    let isBackNav = false
-    window.addEventListener('popstate', () => {
-      isBackNav = true
-    })
-
     options.router.beforeResolve((to, from) => {
-      if (isBackNav) {
-        isBackNav = false
-        return
-      }
-
-      // Initial nav has no `from`. Same-fullPath navs (e.g. query-only changes)
-      // shouldn't snapshot — they re-fire `beforeResolve` without an actual leave.
       if (!from || to.fullPath === from.fullPath) return
 
-      // Carry forward positions for elements not currently in the DOM (e.g.
-      // off-screen panes, modal content) so a later mount can still restore them.
+      // Unlock tracking states across active elements so components reused on query
+      // changes can re-evaluate layout heights and apply new scroll constraints.
+      activeElements.forEach(el => {
+        el.dataset.restored = 'false'
+      })
+
+      // Skip snapshot on popstate (back/forward) to preserve destination coordinate maps.
+      const state = history.state as Record<string, unknown> | null
+      const currentPath = state?.['current']
+      if (typeof currentPath !== 'string' || currentPath !== from.fullPath) return
+
       const positions: ScrollPositions = {
-        ...((history.state as Record<string, unknown> | null)?.[SCROLL_STATE_KEY] as
-          | ScrollPositions
-          | undefined)
+        ...(state?.[SCROLL_STATE_KEY] as ScrollPositions | undefined)
       }
 
-      document.querySelectorAll('[data-scroll-id]').forEach(el => {
+      activeElements.forEach(el => {
         const id = el.getAttribute('data-scroll-id')
-        if (id) positions[id] = { top: el.scrollTop, left: el.scrollLeft }
+        if (id) {
+          positions[id] = { top: el.scrollTop, left: el.scrollLeft }
+        }
       })
 
       history.replaceState({ ...history.state, [SCROLL_STATE_KEY]: positions }, '')
