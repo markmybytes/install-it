@@ -90,7 +90,8 @@ function confirmDelete() {
     </PageHeader>
 
     <div
-      class="scrollable flex min-h-48 grow flex-col overflow-y-scroll rounded-md p-1.5 shadow-md"
+      v-scroll-restore="'drivers-list'"
+      class="flex min-h-48 grow flex-col overflow-y-scroll rounded-md p-1.5 shadow-md"
     >
       <template v-for="g in filteredGroups" :key="g.id">
         <div

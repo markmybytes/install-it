@@ -13,7 +13,6 @@ function hwKey(suffix: string): string {
 function opKey(suffix: string): string {
   return `op${suffix.charAt(0).toUpperCase() + suffix.slice(1)}`
 }
-
 </script>
 
 <template>
@@ -25,7 +24,8 @@ function opKey(suffix: string): string {
     />
 
     <div
-      class="scrollable flex min-h-48 grow flex-col overflow-y-scroll rounded-md p-1.5 shadow-md"
+      v-scroll-restore="'match-rules-list'"
+      class="flex min-h-48 grow flex-col overflow-y-scroll rounded-md p-1.5 shadow-md"
     >
       <div
         v-for="rs in ruleStore.ruleSets"
