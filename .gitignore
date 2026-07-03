@@ -29,3 +29,6 @@ go.work.sum
 # env file
 .env
 .slim/deepwork/
+
+# TypeScript incremental build info (`vue-tsc --build`)
+*.tsbuildinfo
