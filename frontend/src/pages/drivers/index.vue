@@ -36,19 +36,6 @@ async function reloadGroups() {
 const filteredGroups = computed(() =>
   groupStore.groups.filter(g => route.query.type == undefined || g.type == route.query.type)
 )
-
-function confirmDelete() {
-  if (modal.value.deleteId === null) return
-  groupStorage
-    .Remove(modal.value.deleteId)
-    .then(() => reloadGroups())
-    .catch(() => {
-      toast.add({ title: t('toastDeleteFailed'), color: 'error' })
-    })
-    .finally(() => {
-      modal.value.deleteId = null
-    })
-}
 </script>
 
 <template>
@@ -240,7 +227,11 @@ function confirmDelete() {
                 size="sm"
                 class="h-8 w-8"
                 :title="$t('delete')"
-                @click="modal.deleteId = g.id"
+                @click="
+                  () => {
+                    modal.deleteId = g.id
+                  }
+                "
               >
                 <Icon icon="mdi:trash-can" class="text-base" />
               </UButton>
@@ -272,7 +263,11 @@ function confirmDelete() {
               ? '--btn-color: var(--color-apple-green-800); animation: var(--animate-blink-75);'
               : '--btn-color: #D9BD68'
           "
-          @click="drag.reordering = !drag.reordering"
+          @click="
+            () => {
+              drag.reordering = !drag.reordering
+            }
+          "
         >
           {{ drag.reordering ? $t('view') : $t('fieldOrder') }}
         </UButton>
@@ -300,11 +295,38 @@ function confirmDelete() {
 
       <template #footer>
         <div class="flex justify-end gap-2">
-          <UButton color="neutral" variant="ghost" @click="modal.deleteId = null">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            @click="
+              () => {
+                modal.deleteId = null
+              }
+            "
+          >
             {{ $t('cancel') }}
           </UButton>
 
-          <UButton color="error" @click="confirmDelete">
+          <UButton
+            color="error"
+            @click="
+              () => {
+                if (modal.deleteId === null) {
+                  return
+                }
+
+                groupStorage
+                  .Remove(modal.deleteId)
+                  .then(() => reloadGroups())
+                  .catch(() => {
+                    toast.add({ title: $t('toastDeleteFailed'), color: 'error' })
+                  })
+                  .finally(() => {
+                    modal.deleteId = null
+                  })
+              }
+            "
+          >
             {{ $t('delete') }}
           </UButton>
         </div>
