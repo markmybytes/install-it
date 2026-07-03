@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import DriverInspectModal from '@/components/DriverInspectModal.vue'
+import { useReorderable } from '@/composables/useReorderable'
 import { storage } from '@/wailsjs/go/models'
 import * as groupStorage from '@/wailsjs/go/storage/DriverGroupStorage'
-import type Sortable from 'sortablejs'
-import { useReorderable } from '@/composables/useReorderable'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -21,7 +20,30 @@ const modal = ref<{ inspectId: number | null; deleteId: number | null }>({
   deleteId: null
 })
 
-const { enabled: sortEnabled } = useReorderable('container', { onEnd: handleReorderEnd })
+const { enabled: sortEnabled } = useReorderable('container', {
+  onEnd: ({ oldIndex, newIndex }) => {
+    if (oldIndex == null || newIndex == null || oldIndex === newIndex) {
+      return
+    }
+
+    const sourceItem = filteredGroups.value[oldIndex]
+    const targetItem = filteredGroups.value[newIndex]
+    if (!sourceItem || !targetItem) {
+      return
+    }
+
+    const sourceGlobalIdx = groupStore.groups.findIndex(g => g.id === sourceItem.id)
+    const targetGlobalIdx = groupStore.groups.findIndex(g => g.id === targetItem.id)
+    if (sourceGlobalIdx === -1 || targetGlobalIdx === -1) {
+      return
+    }
+
+    groupStorage
+      .MoveBehind(sourceItem.id, targetGlobalIdx - (sourceGlobalIdx <= targetGlobalIdx ? 1 : 0))
+      .catch(() => toast.add({ title: t('toastSaveFailed'), color: 'error' }))
+      .finally(reloadGroups)
+  }
+})
 
 async function reloadGroups() {
   return groupStorage
@@ -36,19 +58,6 @@ const filteredGroups = computed(() =>
   groupStore.groups.filter(g => route.query.type == undefined || g.type == route.query.type)
 )
 
-function confirmDelete() {
-  if (modal.value.deleteId === null) return
-  groupStorage
-    .Remove(modal.value.deleteId)
-    .then(() => reloadGroups())
-    .catch(() => {
-      toast.add({ title: t('toastDeleteFailed'), color: 'error' })
-    })
-    .finally(() => {
-      modal.value.deleteId = null
-    })
-}
-
 function openInspect(id: number) {
   if (sortEnabled.value) {
     return
@@ -56,29 +65,6 @@ function openInspect(id: number) {
   modal.value.inspectId = id
 }
 
-function handleReorderEnd(evt: Sortable.SortableEvent) {
-  if (evt.oldIndex === evt.newIndex) return
-  if (evt.oldIndex == null || evt.newIndex == null) return
-
-  const sourceItem = filteredGroups.value[evt.oldIndex]
-  const targetItem = filteredGroups.value[evt.newIndex]
-  if (!sourceItem || !targetItem) return
-
-  const sourceGlobalIdx = groupStore.groups.findIndex(g => g.id === sourceItem.id)
-  const targetGlobalIdx = groupStore.groups.findIndex(g => g.id === targetItem.id)
-  if (sourceGlobalIdx === -1 || targetGlobalIdx === -1) return
-
-  let moveBehindIdx = targetGlobalIdx
-  if (sourceGlobalIdx <= targetGlobalIdx) moveBehindIdx -= 1
-
-  groupStorage
-    .MoveBehind(sourceItem.id, moveBehindIdx)
-    .then(() => reloadGroups())
-    .catch(() => {
-      reloadGroups()
-      toast.add({ title: t('toastSaveFailed'), color: 'error' })
-    })
-}
 </script>
 
 <template>
