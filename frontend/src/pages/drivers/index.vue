@@ -64,7 +64,6 @@ function openInspect(id: number) {
   }
   modal.value.inspectId = id
 }
-
 </script>
 
 <template>
@@ -261,7 +260,7 @@ function openInspect(id: number) {
           "
           @click="
             () => {
-sortEnabled = !sortEnabled
+              sortEnabled = !sortEnabled
             }
           "
         >
