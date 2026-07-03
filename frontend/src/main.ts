@@ -9,13 +9,20 @@ import { createPinia } from 'pinia'
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
+import scrollRestore from './plugins/scrollRestore'
 
 // Register icon collections for offline support
 // See: https://iconify.design/news/2025.html#why-was-it-removed
 addCollection(mdiIcons)
 addCollection(lucideIcons) // nuxt/ui uses lucide icons
 
-const app = createApp(App).use(router).use(createPinia()).use(i18n).use(ui).component('Icon', Icon)
+const app = createApp(App)
+  .use(router)
+  .use(createPinia())
+  .use(i18n)
+  .use(ui)
+  .use(scrollRestore, { router })
+  .component('Icon', Icon)
 
 app.config.globalProperties.$window = window
 
