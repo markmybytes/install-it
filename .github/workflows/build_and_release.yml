@@ -130,7 +130,7 @@ jobs:
           name: updater-${{ matrix.architecture }}
           path: dist/updater.${{ matrix.build-name }}.exe
 
-  draft-release:
+  release:
     needs: [build, build-updater]
     runs-on: ubuntu-latest
 
@@ -144,6 +144,7 @@ jobs:
       - name: Create release with artifacts
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ github.ref_name }}
           artifacts: dist/*
           generateReleaseNotes: true
+          tag: ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
