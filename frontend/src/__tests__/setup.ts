@@ -64,12 +64,14 @@ vi.mock('@/wailsjs/go/porter/Porter', () => ({
 }))
 
 vi.mock('@/wailsjs/go/sysinfo/SysInfo', () => ({
-  CpuInfo: vi.fn().mockResolvedValue([]),
-  MotherboardInfo: vi.fn().mockResolvedValue([]),
-  GpuInfo: vi.fn().mockResolvedValue([]),
-  NicInfo: vi.fn().mockResolvedValue([]),
-  DiskInfo: vi.fn().mockResolvedValue([]),
-  MemoryInfo: vi.fn().mockResolvedValue([])
+  ResolvedHardware: vi.fn().mockResolvedValue({
+    cpu: [],
+    gpu: [],
+    memory: [],
+    motherboard: [],
+    nic: [],
+    storage: []
+  })
 }))
 
 vi.mock('@/wailsjs/runtime/runtime', () => ({

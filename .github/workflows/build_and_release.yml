@@ -72,10 +72,16 @@ jobs:
           expand -r webview2.cab -F:* internals\bin
           move internals\bin\Microsoft.WebView2.FixedVersionRuntime.* internals\bin\WebView2
 
+      - name: Download PCI ID database
+        run: |
+          cd build\bin
+          mkdir internals\data
+          curl -sL -o internals\data\pci.ids.gz https://pci-ids.ucw.cz/v2.2/pci.ids.gz
+
       - name: Bundle binary and WebView2 files into ZIP
         run: |
           cd build\bin
-          7z a install-it.${{ matrix.build-name }}.zip install-it.exe -mx8
+          7z a install-it.${{ matrix.build-name }}.zip install-it.exe internals\data -mx8
           7z a install-it.${{ matrix.build-name }}-bundled.zip install-it.exe internals -mx8
 
       - name: Collect artifacts
