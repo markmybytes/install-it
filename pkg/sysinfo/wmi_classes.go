@@ -207,8 +207,9 @@ type Win32_DiskDrive struct {
 
 // Device setup class GUIDs for filtering Win32_PnPEntity by device type.
 const (
-	GUID_DEVCLASS_DISPLAY = "{4d36e968-e325-11ce-bfc1-08002be10318}"
-	GUID_DEVCLASS_NET     = "{4d36e972-e325-11ce-bfc1-08002be10318}"
+	GUID_DEVCLASS_DISPLAY   = "{4d36e968-e325-11ce-bfc1-08002be10318}"
+	GUID_DEVCLASS_NET       = "{4d36e972-e325-11ce-bfc1-08002be10318}"
+	GUID_DEVCLASS_BLUETOOTH = "{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}"
 )
 
 /*

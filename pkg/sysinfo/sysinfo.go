@@ -80,6 +80,14 @@ func isNicPnPEntity(e Win32_PnPEntity) bool {
 		strings.Contains(nameUpper, "WLAN")
 }
 
+// isBluetoothRadioPnPEntity returns true if the PnP entity is a Bluetooth
+// radio (the actual Bluetooth hardware). This is distinct from the
+// Bluetooth PAN network service, which isNicPnPEntity catches via the
+// "NETWORK" keyword.
+func isBluetoothRadioPnPEntity(e Win32_PnPEntity) bool {
+	return e.ClassGuid == GUID_DEVCLASS_BLUETOOTH
+}
+
 // ResolvedGpuNames returns human-readable GPU names resolved via the pci.ids
 // database.
 func (i SysInfo) resolvedGpuNames() ([]string, error) {
@@ -121,7 +129,7 @@ func (i SysInfo) resolvedNicNames() ([]string, error) {
 	var names []string
 	seen := make(map[string]bool)
 	for _, e := range entities {
-		if !isNicPnPEntity(e) {
+		if !isNicPnPEntity(e) && !isBluetoothRadioPnPEntity(e) {
 			continue
 		}
 		pnpName := strings.TrimSpace(e.Name)
