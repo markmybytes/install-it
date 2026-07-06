@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 
 	"github.com/yusufpapurcu/wmi"
 )
@@ -22,9 +23,11 @@ type ResolvedHardware struct {
 type SysInfo struct{}
 
 // queryWMI executes a WMI query returning all instances of the given type.
-func queryWMI[T any]() ([]T, error) {
+// Pass "" for an unfiltered query, or a full clause like
+// "WHERE ClassGuid = '...'" for server-side filtering.
+func queryWMI[T any](where string) ([]T, error) {
 	var cls []T
-	q := wmi.CreateQuery(&cls, "")
+	q := wmi.CreateQuery(&cls, where)
 	if err := wmi.Query(q, &cls); err != nil {
 		return cls, err
 	}
@@ -80,30 +83,56 @@ func isNicPnPEntity(e Win32_PnPEntity) bool {
 		strings.Contains(nameUpper, "WLAN")
 }
 
-// isBluetoothRadioPnPEntity returns true if the PnP entity is a Bluetooth
-// radio (the actual Bluetooth hardware). This is distinct from the
-// Bluetooth PAN network service, which isNicPnPEntity catches via the
-// "NETWORK" keyword.
-func isBluetoothRadioPnPEntity(e Win32_PnPEntity) bool {
+// isBluetoothPnPEntity returns true if the PnP entity is in the Bluetooth
+// device class. Combined with isPhysicalPnPEntity, identifies the actual
+// radio (which has a USB hardware ID) versus paired devices and protocol
+// services (which are software-emulated and lack one).
+func isBluetoothPnPEntity(e Win32_PnPEntity) bool {
 	return e.ClassGuid == GUID_DEVCLASS_BLUETOOTH
 }
 
-// ResolvedGpuNames returns human-readable GPU names. The name comes from
+// isPhysicalPnPEntity returns true if the PnP entity represents real
+// physical hardware — i.e. its first hardware or compatible ID carries a
+// PCI\ or USB\ prefix. Software-emulated virtual adapters (Hyper-V
+// switches, OpenVPN TAP, virtual Bluetooth transports) lack such IDs and
+// are filtered out by this check.
+func isPhysicalPnPEntity(e Win32_PnPEntity) bool {
+	for _, hwid := range e.HardwareID {
+		if strings.HasPrefix(hwid, "PCI\\") || strings.HasPrefix(hwid, "USB\\") {
+			return true
+		}
+	}
+	for _, cid := range e.CompatibleID {
+		if strings.HasPrefix(cid, "PCI\\") || strings.HasPrefix(cid, "USB\\") {
+			return true
+		}
+	}
+	return false
+}
+
+// resolvedGpuNames returns human-readable GPU names. The name comes from
 // Win32_PnPEntity (driver-independent); VRAM comes from
 // Win32_VideoController (driver-dependent, omitted when no display driver).
+// It runs two PnP queries internally: a ClassGuid-filtered query for display
+// devices (the common case) and a fallback for ClassGuid IS NULL entities
+// that need client-side classification via CompatibleID/Name. It also
+// queries Win32_VideoController internally for VRAM data.
 func (i SysInfo) resolvedGpuNames() ([]string, error) {
-	entities, err := queryWMI[Win32_PnPEntity]()
-	if err != nil {
-		return nil, err
-	}
-
-	// Best-effort: query for VRAM. May fail or return empty if no display
-	// driver is installed.
-	controllers, _ := queryWMI[Win32_VideoController]()
+	// Best-effort: query VRAM. May return nil/empty if no display driver is
+	// installed.
+	controllers, _ := queryWMI[Win32_VideoController]("")
 	vramByName := make(map[string]uint64)
 	for _, c := range controllers {
 		vramByName[strings.TrimSpace(c.Name)] = c.AdapterRAM
 	}
+
+	// Server-side filtered PnP query for display devices, plus a fallback
+	// for entities with NULL ClassGuid (3-tier classification handles them).
+	primary, _ := queryWMI[Win32_PnPEntity](
+		"WHERE ClassGuid = '" + GUID_DEVCLASS_DISPLAY + "'",
+	)
+	fallback, _ := queryWMI[Win32_PnPEntity]("WHERE ClassGuid IS NULL")
+	entities := append(primary, fallback...)
 
 	var names []string
 	seen := make(map[string]bool)
@@ -157,22 +186,33 @@ func formatBytes(bytes uint64) string {
 	return fmt.Sprintf("%.1f GB", float64(bytes)/1e9)
 }
 
-// ResolvedNicNames returns human-readable NIC names. Uses the PnP device
-// name (driver-supplied or BIOS-supplied) when non-empty, with the PCI
-// vendor appended in parentheses. Falls back to the pci.ids-resolved name
-// (which already contains the vendor) only when the PnP name is empty.
+// resolvedNicNames returns the names of physical network adapters and
+// Bluetooth radios as a flat list. Virtual adapters (Hyper-V switches,
+// OpenVPN TAP, Bluetooth transports, BT PAN, etc.) are filtered out by
+// requiring a PCI\ or USB\ hardware ID. Names are formatted as
+// "<PnP name> (<PCI vendor>)" — the vendor suffix is only present when
+// the PCI vendor lookup succeeds (i.e. for PCI devices, not USB radios
+// like Bluetooth where the VEN_XXXX regex doesn't match).
+// It runs two PnP queries internally: a ClassGuid-filtered query for net
+// and Bluetooth devices (the common case) and a fallback for ClassGuid
+// IS NULL entities that need client-side classification.
 func (i SysInfo) resolvedNicNames() ([]string, error) {
-	// Win32_PnPEntity is used so HardwareID and Name are available even
-	// when no NIC driver is installed.
-	entities, err := queryWMI[Win32_PnPEntity]()
-	if err != nil {
-		return nil, err
-	}
+	// Server-side filtered PnP query for net + Bluetooth devices, plus a
+	// fallback for entities with NULL ClassGuid.
+	primary, _ := queryWMI[Win32_PnPEntity](
+		"WHERE ClassGuid = '" + GUID_DEVCLASS_NET +
+			"' OR ClassGuid = '" + GUID_DEVCLASS_BLUETOOTH + "'",
+	)
+	fallback, _ := queryWMI[Win32_PnPEntity]("WHERE ClassGuid IS NULL")
+	entities := append(primary, fallback...)
 
 	var names []string
 	seen := make(map[string]bool)
 	for _, e := range entities {
-		if !isNicPnPEntity(e) && !isBluetoothRadioPnPEntity(e) {
+		if !isPhysicalPnPEntity(e) {
+			continue
+		}
+		if !isNicPnPEntity(e) && !isBluetoothPnPEntity(e) {
 			continue
 		}
 		pnpName := strings.TrimSpace(e.Name)
@@ -193,16 +233,13 @@ func (i SysInfo) resolvedNicNames() ([]string, error) {
 				}
 			}
 		}
-		if name == "" {
-			continue
-		}
-		if vendor != "" {
-			name = name + " (" + vendor + ")"
-		}
-		if seen[name] {
+		if name == "" || seen[name] {
 			continue
 		}
 		seen[name] = true
+		if vendor != "" {
+			name = name + " (" + vendor + ")"
+		}
 		names = append(names, name)
 	}
 
@@ -210,7 +247,7 @@ func (i SysInfo) resolvedNicNames() ([]string, error) {
 }
 
 func (i SysInfo) resolvedCpuNames() ([]string, error) {
-	cpus, err := queryWMI[Win32_Processor]()
+	cpus, err := queryWMI[Win32_Processor]("")
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +259,7 @@ func (i SysInfo) resolvedCpuNames() ([]string, error) {
 }
 
 func (i SysInfo) resolvedMemoryNames() ([]string, error) {
-	mems, err := queryWMI[Win32_PhysicalMemory]()
+	mems, err := queryWMI[Win32_PhysicalMemory]("")
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +274,7 @@ func (i SysInfo) resolvedMemoryNames() ([]string, error) {
 }
 
 func (i SysInfo) resolvedMotherboardNames() ([]string, error) {
-	boards, err := queryWMI[Win32_BaseBoard]()
+	boards, err := queryWMI[Win32_BaseBoard]("")
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +286,7 @@ func (i SysInfo) resolvedMotherboardNames() ([]string, error) {
 }
 
 func (i SysInfo) resolvedDiskNames() ([]string, error) {
-	disks, err := queryWMI[Win32_DiskDrive]()
+	disks, err := queryWMI[Win32_DiskDrive]("")
 	if err != nil {
 		return nil, err
 	}
@@ -271,23 +308,60 @@ func (i SysInfo) ResolvedHardware() (ResolvedHardware, error) {
 		Storage:     []string{},
 	}
 
-	if names, err := i.resolvedCpuNames(); err == nil && names != nil {
-		hw.Cpu = names
+	// Run the independent WMI queries concurrently. Each is a separate
+	// DCOM/RPC call to the WMI service, so they parallelize well. Errors
+	// are silently ignored per the existing contract — only the result is
+	// dropped.
+	//
+	// GPU and NIC resolvers are fully self-contained (they each query
+	// Win32_PnPEntity and, for the GPU, Win32_VideoController internally),
+	// so they are not part of the fan-out here.
+	var wg sync.WaitGroup
+
+	run := func(fn func()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fn()
+		}()
 	}
-	if names, err := i.resolvedGpuNames(); err == nil && names != nil {
+
+	var (
+		cpuRes  []string
+		memRes  []string
+		moboRes []string
+		diskRes []string
+	)
+
+	run(func() { cpuRes, _ = i.resolvedCpuNames() })
+	run(func() { memRes, _ = i.resolvedMemoryNames() })
+	run(func() { moboRes, _ = i.resolvedMotherboardNames() })
+	run(func() { diskRes, _ = i.resolvedDiskNames() })
+
+	wg.Wait()
+
+	// GPU and NIC resolvers are fully self-contained and run their own
+	// internal PnP queries (filtered + null fallback) after the parallel
+	// batch — the wmi library serializes all queries via a package-level
+	// mutex, so there is no additional wall-clock cost.
+	if names, err := i.resolvedGpuNames(); err == nil && len(names) > 0 {
 		hw.Gpu = names
 	}
-	if names, err := i.resolvedMemoryNames(); err == nil && names != nil {
-		hw.Memory = names
-	}
-	if names, err := i.resolvedMotherboardNames(); err == nil && names != nil {
-		hw.Motherboard = names
-	}
-	if names, err := i.resolvedNicNames(); err == nil && names != nil {
+	if names, err := i.resolvedNicNames(); err == nil && len(names) > 0 {
 		hw.Nic = names
 	}
-	if names, err := i.resolvedDiskNames(); err == nil && names != nil {
-		hw.Storage = names
+
+	if len(cpuRes) > 0 {
+		hw.Cpu = cpuRes
+	}
+	if len(memRes) > 0 {
+		hw.Memory = memRes
+	}
+	if len(moboRes) > 0 {
+		hw.Motherboard = moboRes
+	}
+	if len(diskRes) > 0 {
+		hw.Storage = diskRes
 	}
 
 	return hw, nil
