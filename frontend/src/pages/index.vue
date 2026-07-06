@@ -6,6 +6,7 @@ import * as executor from '@/wailsjs/go/execute/CommandExecutor'
 import * as matcher from '@/wailsjs/go/matching/Matcher'
 import { computed, onBeforeMount, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { sysinfo } from '@/wailsjs/go/models'
 
 const { t } = useI18n()
 
@@ -26,14 +27,7 @@ const groups = computed(() =>
     : groupStore.groups
 )
 
-const hwinfos = ref<{
-  cpu: Array<string>
-  gpu: Array<string>
-  motherboard: Array<string>
-  memory: Array<string>
-  nic: Array<string>
-  storage: Array<string>
-} | null>(null)
+const hwinfos = ref<sysinfo.ResolvedHardware | null>(null)
 
 const selectedNetwork = ref<number>(0)
 const selectedDisplay = ref<number>(0)

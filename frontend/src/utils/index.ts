@@ -40,32 +40,7 @@ export async function latestRelease(currentVersion: string, binaryType?: string)
  * Retrieves detailed hardware information from the system.
  */
 export async function getHardware() {
-  return Promise.all([
-    libsysi.CpuInfo().then(vs => vs.map(v => v.Name)),
-    libsysi
-      .GpuInfo()
-      .then(vs => vs.map(v => `${v.Name} (${Math.round(v.AdapterRAM / Math.pow(1024, 3))}GB)`)),
-    libsysi
-      .MemoryInfo()
-      .then(vs =>
-        vs.map(
-          v =>
-            `${v.Manufacturer} ${v.PartNumber.trim()} ${v.Capacity / Math.pow(1024, 3)}GB ${v.Speed}MHz`
-        )
-      ),
-    libsysi.MotherboardInfo().then(vs => vs.map(v => `${v.Manufacturer} ${v.Product}`)),
-    libsysi.NicInfo().then(vs => vs.map(v => v.Name)),
-    libsysi
-      .DiskInfo()
-      .then(vs => vs.map(v => `${v.Model} (${Math.round(v.Size / Math.pow(1024, 3))}GB)`))
-  ]).then(parts => ({
-    cpu: parts[0],
-    gpu: parts[1],
-    memory: parts[2],
-    motherboard: parts[3],
-    nic: parts[4],
-    storage: parts[5]
-  }))
+  return libsysi.ResolvedHardware()
 }
 
 /**
