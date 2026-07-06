@@ -126,12 +126,25 @@ func ResolvePciName(hardwareID string) string {
 	ven := strings.ToLower(matches[1])
 	dev := strings.ToLower(matches[2])
 
-	db := getPCIDB()
-	venName, venOk := db.vendors[ven]
-	devName, devOk := db.products[ven+":"+dev]
+	venName, venOk := getPCIDB().vendors[ven]
+	devName, devOk := getPCIDB().products[ven+":"+dev]
 
 	if !venOk && !devOk {
 		return ""
 	}
 	return strings.TrimSpace(venName + " " + devName)
+}
+
+// ResolvePciVendor returns the vendor name for a Windows HardwareID string
+// using the pci.ids database. Returns empty string if the HardwareID cannot
+// be parsed or the vendor is not found.
+func ResolvePciVendor(hardwareID string) string {
+	matches := hwidRe.FindStringSubmatch(hardwareID)
+	if len(matches) != 3 {
+		return ""
+	}
+	if name, ok := getPCIDB().vendors[strings.ToLower(matches[1])]; ok {
+		return name
+	}
+	return ""
 }

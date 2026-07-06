@@ -141,8 +141,10 @@ func (i SysInfo) resolvedGpuNames() ([]string, error) {
 	return names, nil
 }
 
-// ResolvedNicNames returns human-readable NIC names resolved via the pci.ids
-// database.
+// ResolvedNicNames returns human-readable NIC names. Uses the PnP device
+// name (driver-supplied or BIOS-supplied) when non-empty, with the PCI
+// vendor appended in parentheses. Falls back to the pci.ids-resolved name
+// (which already contains the vendor) only when the PnP name is empty.
 func (i SysInfo) resolvedNicNames() ([]string, error) {
 	entities, err := i.pnPEntityInfo()
 	if err != nil {
@@ -152,14 +154,38 @@ func (i SysInfo) resolvedNicNames() ([]string, error) {
 	var names []string
 	seen := make(map[string]bool)
 	for _, e := range entities {
-		if isNicPnPEntity(e) {
+		if !isNicPnPEntity(e) {
+			continue
+		}
+		pnpName := strings.TrimSpace(e.Name)
+		var name, vendor string
+		if pnpName != "" {
+			name = pnpName
 			for _, hwid := range e.HardwareID {
-				if name := ResolvePciName(hwid); name != "" && !seen[name] {
-					seen[name] = true
-					names = append(names, name)
+				if v := ResolvePciVendor(hwid); v != "" {
+					vendor = v
+					break
+				}
+			}
+		} else {
+			for _, hwid := range e.HardwareID {
+				if n := ResolvePciName(hwid); n != "" {
+					name = n
+					break
 				}
 			}
 		}
+		if name == "" {
+			continue
+		}
+		if vendor != "" {
+			name = name + " (" + vendor + ")"
+		}
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
 	}
 
 	return names, nil
