@@ -11,7 +11,7 @@ import (
 // FuzzAppSetting_JSONRoundtrip verifies that a JSON string parsed into
 // AppSetting and re-marshaled produces a consistent result (no panic).
 func FuzzAppSetting_JSONRoundtrip(f *testing.F) {
-	f.Add(`{"create_partition":true,"set_password":false,"password":"","parallel_install":true,"success_action":"nothing","success_action_delay":5,"filter_miniport_nic":true,"filter_microsoft_nic":true,"language":"en","driver_download_url":"","auto_check_update":true,"hide_not_found":false}`)
+	f.Add(`{"create_partition":true,"set_password":false,"password":"","parallel_install":true,"success_action":"nothing","success_action_delay":5,"language":"en","driver_download_url":"","auto_check_update":true,"hide_not_found":false}`)
 	f.Add(`{}`)
 	f.Add(`{"success_action":"reboot","success_action_delay":10,"language":"zh_Hant_HK"}`)
 	f.Add(`{"success_action":"shutdown","password":"secret"}`)

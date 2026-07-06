@@ -13,8 +13,6 @@ type AppSetting struct {
 	ParallelInstall    bool          `json:"parallel_install"`
 	SuccessAction      SuccessAction `json:"success_action"`
 	SuccessActionDelay int           `json:"success_action_delay"`
-	FilterMiniportNic  bool          `json:"filter_miniport_nic"`
-	FilterMicrosoftNic bool          `json:"filter_microsoft_nic"`
 	Language           string        `json:"language"`
 	DriverDownloadUrl  string        `json:"driver_download_url"`
 	AutoCheckUpdate    bool          `json:"auto_check_update"`
@@ -42,8 +40,6 @@ func (s *AppSettingStorage) All() (AppSetting, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			s.setting = AppSetting{
 				AutoCheckUpdate:    true,
-				FilterMiniportNic:  true,
-				FilterMicrosoftNic: true,
 				Language:           "en",
 				ParallelInstall:    true,
 				SuccessAction:      Nothing,

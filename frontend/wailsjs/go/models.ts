@@ -156,8 +156,6 @@ export namespace storage {
 	    parallel_install: boolean;
 	    success_action: SuccessAction;
 	    success_action_delay: number;
-	    filter_miniport_nic: boolean;
-	    filter_microsoft_nic: boolean;
 	    language: string;
 	    driver_download_url: string;
 	    auto_check_update: boolean;
@@ -176,8 +174,6 @@ export namespace storage {
 	        this.parallel_install = source["parallel_install"];
 	        this.success_action = source["success_action"];
 	        this.success_action_delay = source["success_action_delay"];
-	        this.filter_miniport_nic = source["filter_miniport_nic"];
-	        this.filter_microsoft_nic = source["filter_microsoft_nic"];
 	        this.language = source["language"];
 	        this.driver_download_url = source["driver_download_url"];
 	        this.auto_check_update = source["auto_check_update"];
