@@ -21,8 +21,9 @@ type ResolvedHardware struct {
 
 type SysInfo struct{}
 
-func (i SysInfo) cpuInfo() ([]Win32_Processor, error) {
-	var cls []Win32_Processor
+// queryWMI executes a WMI query returning all instances of the given type.
+func queryWMI[T any]() ([]T, error) {
+	var cls []T
 	q := wmi.CreateQuery(&cls, "")
 	if err := wmi.Query(q, &cls); err != nil {
 		return cls, err
@@ -30,45 +31,7 @@ func (i SysInfo) cpuInfo() ([]Win32_Processor, error) {
 	return cls, nil
 }
 
-func (i SysInfo) motherboardInfo() ([]Win32_BaseBoard, error) {
-	var cls []Win32_BaseBoard
-	q := wmi.CreateQuery(&cls, "")
-	if err := wmi.Query(q, &cls); err != nil {
-		return cls, err
-	}
-	return cls, nil
-}
-
-func (i SysInfo) memoryInfo() ([]Win32_PhysicalMemory, error) {
-	var cls []Win32_PhysicalMemory
-	q := wmi.CreateQuery(&cls, "")
-	if err := wmi.Query(q, &cls); err != nil {
-		return cls, err
-	}
-	return cls, nil
-}
-
-func (i SysInfo) diskInfo() ([]Win32_DiskDrive, error) {
-	var cls []Win32_DiskDrive
-	q := wmi.CreateQuery(&cls, "")
-	if err := wmi.Query(q, &cls); err != nil {
-		return cls, err
-	}
-	return cls, nil
-}
-
-// pnPEntityInfo queries all Win32_PnPEntity instances on the system.
-// These provide HardwareID and CompatibleID even when no driver is installed.
-func (i SysInfo) pnPEntityInfo() ([]Win32_PnPEntity, error) {
-	var cls []Win32_PnPEntity
-	q := wmi.CreateQuery(&cls, "")
-	if err := wmi.Query(q, &cls); err != nil {
-		return cls, err
-	}
-	return cls, nil
-}
-
-// IsGpuPnPEntity returns true if the PnP entity is a GPU/display adapter.
+// isGpuPnPEntity returns true if the PnP entity is a GPU/display adapter.
 // Classification uses a 3-tier approach:
 //  1. ClassGuid matches GUID_DEVCLASS_DISPLAY
 //  2. CompatibleID contains "CC_03" (display class)
@@ -92,7 +55,7 @@ func isGpuPnPEntity(e Win32_PnPEntity) bool {
 		strings.Contains(nameUpper, "3D")
 }
 
-// IsNicPnPEntity returns true if the PnP entity is a network adapter.
+// isNicPnPEntity returns true if the PnP entity is a network adapter.
 // Classification uses a 3-tier approach:
 //  1. ClassGuid matches GUID_DEVCLASS_NET
 //  2. CompatibleID contains "CC_02" (network class)
@@ -120,7 +83,9 @@ func isNicPnPEntity(e Win32_PnPEntity) bool {
 // ResolvedGpuNames returns human-readable GPU names resolved via the pci.ids
 // database.
 func (i SysInfo) resolvedGpuNames() ([]string, error) {
-	entities, err := i.pnPEntityInfo()
+	// Win32_PnPEntity is used (not Win32_VideoController) so GPU names are
+	// available even when the display driver is not installed.
+	entities, err := queryWMI[Win32_PnPEntity]()
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +111,9 @@ func (i SysInfo) resolvedGpuNames() ([]string, error) {
 // vendor appended in parentheses. Falls back to the pci.ids-resolved name
 // (which already contains the vendor) only when the PnP name is empty.
 func (i SysInfo) resolvedNicNames() ([]string, error) {
-	entities, err := i.pnPEntityInfo()
+	// Win32_PnPEntity is used so HardwareID and Name are available even
+	// when no NIC driver is installed.
+	entities, err := queryWMI[Win32_PnPEntity]()
 	if err != nil {
 		return nil, err
 	}
@@ -191,9 +158,8 @@ func (i SysInfo) resolvedNicNames() ([]string, error) {
 	return names, nil
 }
 
-// ResolvedCpuNames returns human-readable CPU names from Win32_Processor.
 func (i SysInfo) resolvedCpuNames() ([]string, error) {
-	cpus, err := i.cpuInfo()
+	cpus, err := queryWMI[Win32_Processor]()
 	if err != nil {
 		return nil, err
 	}
@@ -204,10 +170,8 @@ func (i SysInfo) resolvedCpuNames() ([]string, error) {
 	return names, nil
 }
 
-// ResolvedMemoryNames returns formatted memory strings:
-// "Manufacturer PartNumber XGB YMHz".
 func (i SysInfo) resolvedMemoryNames() ([]string, error) {
-	mems, err := i.memoryInfo()
+	mems, err := queryWMI[Win32_PhysicalMemory]()
 	if err != nil {
 		return nil, err
 	}
@@ -221,10 +185,8 @@ func (i SysInfo) resolvedMemoryNames() ([]string, error) {
 	return names, nil
 }
 
-// ResolvedMotherboardNames returns formatted motherboard strings:
-// "Manufacturer Product".
 func (i SysInfo) resolvedMotherboardNames() ([]string, error) {
-	boards, err := i.motherboardInfo()
+	boards, err := queryWMI[Win32_BaseBoard]()
 	if err != nil {
 		return nil, err
 	}
@@ -235,10 +197,8 @@ func (i SysInfo) resolvedMotherboardNames() ([]string, error) {
 	return names, nil
 }
 
-// ResolvedDiskNames returns formatted disk strings:
-// "Model (XGB)" with GB rounded to int.
 func (i SysInfo) resolvedDiskNames() ([]string, error) {
-	disks, err := i.diskInfo()
+	disks, err := queryWMI[Win32_DiskDrive]()
 	if err != nil {
 		return nil, err
 	}
@@ -250,9 +210,6 @@ func (i SysInfo) resolvedDiskNames() ([]string, error) {
 	return names, nil
 }
 
-// ResolvedHardware returns all resolved hardware names in a single call.
-// Individual query errors are silently ignored — this is intentional
-// degradation for systems missing WMI providers.
 func (i SysInfo) ResolvedHardware() (ResolvedHardware, error) {
 	hw := ResolvedHardware{
 		Cpu:         []string{},
