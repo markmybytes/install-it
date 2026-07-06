@@ -111,18 +111,13 @@ func isPhysicalPnPEntity(e Win32_PnPEntity) bool {
 }
 
 // resolvedGpuNames returns human-readable GPU names. The name comes from
-// Win32_PnPEntity (driver-independent). It runs two PnP queries internally: a
-// ClassGuid-filtered query for display devices (the common case) and a
-// fallback for ClassGuid IS NULL entities that need client-side
-// classification via CompatibleID/Name.
+// Win32_PnPEntity (driver-independent). It runs a single PnP query that
+// covers both ClassGuid-filtered display devices and ClassGuid IS NULL
+// entities (handled client-side by isGpuPnPEntity's 3-tier fallback).
 func (i SysInfo) resolvedGpuNames() ([]string, error) {
-	// Server-side filtered PnP query for display devices, plus a fallback
-	// for entities with NULL ClassGuid (3-tier classification handles them).
-	primary, _ := queryWMI[Win32_PnPEntity](
-		"WHERE ClassGuid = '" + GUID_DEVCLASS_DISPLAY + "'",
+	entities, _ := queryWMI[Win32_PnPEntity](
+		"WHERE ClassGuid = '" + GUID_DEVCLASS_DISPLAY + "' OR ClassGuid IS NULL",
 	)
-	fallback, _ := queryWMI[Win32_PnPEntity]("WHERE ClassGuid IS NULL")
-	entities := append(primary, fallback...)
 
 	var names []string
 	seen := make(map[string]bool)
@@ -171,18 +166,15 @@ func (i SysInfo) resolvedGpuNames() ([]string, error) {
 // "<PnP name> (<PCI vendor>)" — the vendor suffix is only present when
 // the PCI vendor lookup succeeds (i.e. for PCI devices, not USB radios
 // like Bluetooth where the VEN_XXXX regex doesn't match).
-// It runs two PnP queries internally: a ClassGuid-filtered query for net
-// and Bluetooth devices (the common case) and a fallback for ClassGuid
-// IS NULL entities that need client-side classification.
+// It runs a single PnP query that covers both ClassGuid-filtered net +
+// Bluetooth devices and ClassGuid IS NULL entities (handled client-side
+// by isNicPnPEntity / isBluetoothPnPEntity / isPhysicalPnPEntity).
 func (i SysInfo) resolvedNicNames() ([]string, error) {
-	// Server-side filtered PnP query for net + Bluetooth devices, plus a
-	// fallback for entities with NULL ClassGuid.
-	primary, _ := queryWMI[Win32_PnPEntity](
+	entities, _ := queryWMI[Win32_PnPEntity](
 		"WHERE ClassGuid = '" + GUID_DEVCLASS_NET +
-			"' OR ClassGuid = '" + GUID_DEVCLASS_BLUETOOTH + "'",
+			"' OR ClassGuid = '" + GUID_DEVCLASS_BLUETOOTH +
+			"' OR ClassGuid IS NULL",
 	)
-	fallback, _ := queryWMI[Win32_PnPEntity]("WHERE ClassGuid IS NULL")
-	entities := append(primary, fallback...)
 
 	var names []string
 	seen := make(map[string]bool)
@@ -319,7 +311,7 @@ func (i SysInfo) ResolvedHardware() (ResolvedHardware, error) {
 	wg.Wait()
 
 	// GPU and NIC resolvers are fully self-contained and run their own
-	// internal PnP queries (filtered + null fallback) after the parallel
+	// internal PnP queries after the parallel
 	// batch — the wmi library serializes all queries via a package-level
 	// mutex, so there is no additional wall-clock cost.
 	if names, err := i.resolvedGpuNames(); err == nil && len(names) > 0 {
