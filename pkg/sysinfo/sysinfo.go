@@ -111,21 +111,11 @@ func isPhysicalPnPEntity(e Win32_PnPEntity) bool {
 }
 
 // resolvedGpuNames returns human-readable GPU names. The name comes from
-// Win32_PnPEntity (driver-independent); VRAM comes from
-// Win32_VideoController (driver-dependent, omitted when no display driver).
-// It runs two PnP queries internally: a ClassGuid-filtered query for display
-// devices (the common case) and a fallback for ClassGuid IS NULL entities
-// that need client-side classification via CompatibleID/Name. It also
-// queries Win32_VideoController internally for VRAM data.
+// Win32_PnPEntity (driver-independent). It runs two PnP queries internally: a
+// ClassGuid-filtered query for display devices (the common case) and a
+// fallback for ClassGuid IS NULL entities that need client-side
+// classification via CompatibleID/Name.
 func (i SysInfo) resolvedGpuNames() ([]string, error) {
-	// Best-effort: query VRAM. May return nil/empty if no display driver is
-	// installed.
-	controllers, _ := queryWMI[Win32_VideoController]("")
-	vramByName := make(map[string]uint64)
-	for _, c := range controllers {
-		vramByName[strings.TrimSpace(c.Name)] = c.AdapterRAM
-	}
-
 	// Server-side filtered PnP query for display devices, plus a fallback
 	// for entities with NULL ClassGuid (3-tier classification handles them).
 	primary, _ := queryWMI[Win32_PnPEntity](
@@ -161,9 +151,6 @@ func (i SysInfo) resolvedGpuNames() ([]string, error) {
 		if name == "" {
 			continue
 		}
-		if vram := vramByName[pnpName]; vram > 0 {
-			name = name + " (" + formatBytes(vram) + ")"
-		}
 		if vendor != "" {
 			name = name + " (" + vendor + ")"
 		}
@@ -175,15 +162,6 @@ func (i SysInfo) resolvedGpuNames() ([]string, error) {
 	}
 
 	return names, nil
-}
-
-// formatBytes returns a decimal GB string, or "" for zero (e.g. when no
-// display driver is installed and AdapterRAM is 0).
-func formatBytes(bytes uint64) string {
-	if bytes == 0 {
-		return ""
-	}
-	return fmt.Sprintf("%.1f GB", float64(bytes)/1e9)
 }
 
 // resolvedNicNames returns the names of physical network adapters and
@@ -314,7 +292,7 @@ func (i SysInfo) ResolvedHardware() (ResolvedHardware, error) {
 	// dropped.
 	//
 	// GPU and NIC resolvers are fully self-contained (they each query
-	// Win32_PnPEntity and, for the GPU, Win32_VideoController internally),
+	// Win32_PnPEntity internally),
 	// so they are not part of the fan-out here.
 	var wg sync.WaitGroup
 
