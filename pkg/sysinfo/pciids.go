@@ -23,31 +23,19 @@ type pciDB struct {
 	products map[string]string // "10DE:2208" → "GeForce RTX 3080"
 }
 
-var (
-	_pciDB     *pciDB
-	_pciDBOnce sync.Once
-)
+// getPCIDB returns the parsed PCI ID database, loaded once on first call.
+// Returns an empty database if pci.ids.gz cannot be found or read.
+var getPCIDB = sync.OnceValue(func() *pciDB {
+	return loadPCIDB()
+})
 
-// getPCIDB returns the parsed PCI ID database, loading it once on first call.
-// Returns an empty database if the pci.ids.gz file cannot be found or read.
-func getPCIDB() *pciDB {
-	_pciDBOnce.Do(func() {
-		_pciDB = loadPCIDB()
-	})
-	return _pciDB
-}
-
-// loadPCIDB searches for pci.ids.gz in the standard locations, decompresses it,
-// and parses vendor and device entries into lookup maps.
-//
 // Search order:
 //  1. {exe_dir}/internals/data/pci.ids.gz — release
 //  2. pkg/sysinfo/data/pci.ids.gz — dev (relative to working directory)
 func loadPCIDB() *pciDB {
 	empty := &pciDB{vendors: map[string]string{}, products: map[string]string{}}
 
-	paths := []string{}
-
+	var paths []string
 	if exe, err := os.Executable(); err == nil {
 		paths = append(paths, filepath.Join(filepath.Dir(exe), "internals", "data", "pci.ids.gz"))
 	}
@@ -76,8 +64,6 @@ func loadPCIDB() *pciDB {
 	return parsePCIDB(gz)
 }
 
-// parsePCIDB parses the pci.ids text format from a reader.
-//
 // Format:
 //
 //	XXXX  Vendor Name          (no leading whitespace)
@@ -94,48 +80,36 @@ func parsePCIDB(r io.Reader) *pciDB {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-
-		// Skip comments and empty lines
 		if line == "" || line[0] == '#' {
 			continue
 		}
 
 		switch {
 		case line[0] != '\t':
-			// Vendor entry: "XXXX  Name"
-			parts := strings.SplitN(line, "  ", 2)
-			if len(parts) == 2 {
-				id := strings.TrimSpace(parts[0])
-				name := strings.TrimSpace(parts[1])
-				db.vendors[id] = name
-				currentVendor = id
+			if id, name, ok := strings.Cut(line, "  "); ok {
+				currentVendor = strings.TrimSpace(id)
+				db.vendors[currentVendor] = strings.TrimSpace(name)
 			}
-
 		case strings.HasPrefix(line, "\t\t"):
-			// Subsystem entry — skip (two tabs)
-			continue
-
+			// subsystem — skip
 		default:
-			// Device entry: "\tXXXX  Name" (single tab)
 			if currentVendor == "" {
 				continue
 			}
-			trimmed := strings.TrimLeft(line, "\t")
-			parts := strings.SplitN(trimmed, "  ", 2)
-			if len(parts) == 2 {
-				devID := strings.TrimSpace(parts[0])
-				devName := strings.TrimSpace(parts[1])
-				key := currentVendor + ":" + devID
-				db.products[key] = devName
+			if devID, devName, ok := strings.Cut(strings.TrimLeft(line, "\t"), "  "); ok {
+				db.products[currentVendor+":"+strings.TrimSpace(devID)] = strings.TrimSpace(devName)
 			}
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, "install-it: pci.ids parse error — using partial database:", err)
 	}
 
 	return db
 }
 
 // hwidRe matches VEN_XXXX and DEV_XXXX in a Windows HardwareID string.
-// Example: "PCI\VEN_10DE&DEV_2208&SUBSYS_88511043&REV_A1"
 var hwidRe = regexp.MustCompile(`(?i)VEN_([0-9A-F]{4}).*?DEV_([0-9A-F]{4})`)
 
 // ResolvePciName converts a Windows HardwareID string to a human-readable
@@ -153,21 +127,11 @@ func ResolvePciName(hardwareID string) string {
 	dev := strings.ToLower(matches[2])
 
 	db := getPCIDB()
-	if db == nil {
-		return ""
-	}
-
 	venName, venOk := db.vendors[ven]
 	devName, devOk := db.products[ven+":"+dev]
 
-	switch {
-	case venOk && devOk:
-		return venName + " " + devName
-	case venOk:
-		return venName
-	case devOk:
-		return devName
-	default:
+	if !venOk && !devOk {
 		return ""
 	}
+	return strings.TrimSpace(venName + " " + devName)
 }
