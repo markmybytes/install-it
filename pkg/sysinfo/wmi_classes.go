@@ -233,3 +233,16 @@ type Win32_PnPEntity struct {
 	Status                 string
 	Present                bool
 }
+
+/*
+The Win32_VideoController WMI class represents the video adapter on a Windows
+computer system. AdapterRAM is only populated when a display driver is loaded
+for the adapter — without a driver, the query may return an empty result set
+or AdapterRAM=0.
+
+See: https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-videocontroller
+*/
+type Win32_VideoController struct {
+	Name       string
+	AdapterRAM uint64
+}

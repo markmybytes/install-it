@@ -88,30 +88,73 @@ func isBluetoothRadioPnPEntity(e Win32_PnPEntity) bool {
 	return e.ClassGuid == GUID_DEVCLASS_BLUETOOTH
 }
 
-// ResolvedGpuNames returns human-readable GPU names resolved via the pci.ids
-// database.
+// ResolvedGpuNames returns human-readable GPU names. The name comes from
+// Win32_PnPEntity (driver-independent); VRAM comes from
+// Win32_VideoController (driver-dependent, omitted when no display driver).
 func (i SysInfo) resolvedGpuNames() ([]string, error) {
-	// Win32_PnPEntity is used (not Win32_VideoController) so GPU names are
-	// available even when the display driver is not installed.
 	entities, err := queryWMI[Win32_PnPEntity]()
 	if err != nil {
 		return nil, err
 	}
 
+	// Best-effort: query for VRAM. May fail or return empty if no display
+	// driver is installed.
+	controllers, _ := queryWMI[Win32_VideoController]()
+	vramByName := make(map[string]uint64)
+	for _, c := range controllers {
+		vramByName[strings.TrimSpace(c.Name)] = c.AdapterRAM
+	}
+
 	var names []string
 	seen := make(map[string]bool)
 	for _, e := range entities {
-		if isGpuPnPEntity(e) {
+		if !isGpuPnPEntity(e) {
+			continue
+		}
+		pnpName := strings.TrimSpace(e.Name)
+		var name, vendor string
+		if pnpName != "" {
+			name = pnpName
 			for _, hwid := range e.HardwareID {
-				if name := ResolvePciName(hwid); name != "" && !seen[name] {
-					seen[name] = true
-					names = append(names, name)
+				if v := ResolvePciVendor(hwid); v != "" {
+					vendor = v
+					break
+				}
+			}
+		} else {
+			for _, hwid := range e.HardwareID {
+				if n := ResolvePciName(hwid); n != "" {
+					name = n
+					break
 				}
 			}
 		}
+		if name == "" {
+			continue
+		}
+		if vram := vramByName[pnpName]; vram > 0 {
+			name = name + " (" + formatBytes(vram) + ")"
+		}
+		if vendor != "" {
+			name = name + " (" + vendor + ")"
+		}
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
 	}
 
 	return names, nil
+}
+
+// formatBytes returns a decimal GB string, or "" for zero (e.g. when no
+// display driver is installed and AdapterRAM is 0).
+func formatBytes(bytes uint64) string {
+	if bytes == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%.1f GB", float64(bytes)/1e9)
 }
 
 // ResolvedNicNames returns human-readable NIC names. Uses the PnP device
