@@ -72,7 +72,7 @@
   "hwGpu": "GPU",
   "hwMemory": "Memory",
   "hwMotherboard": "Motherboard",
-  "hwNic": "Network Interface Card",
+  "hwNic": "Network Adapters",
   "hwStorage": "Storage",
   "labelAddDriver": "Add Entry",
   "labelBuildType": "Build Type",

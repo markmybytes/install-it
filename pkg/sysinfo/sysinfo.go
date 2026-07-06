@@ -80,12 +80,31 @@ func isNicPnPEntity(e Win32_PnPEntity) bool {
 		strings.Contains(nameUpper, "WLAN")
 }
 
-// isBluetoothRadioPnPEntity returns true if the PnP entity is a Bluetooth
-// radio (the actual Bluetooth hardware). This is distinct from the
-// Bluetooth PAN network service, which isNicPnPEntity catches via the
-// "NETWORK" keyword.
-func isBluetoothRadioPnPEntity(e Win32_PnPEntity) bool {
+// isBluetoothPnPEntity returns true if the PnP entity is in the Bluetooth
+// device class. Combined with isPhysicalPnPEntity, identifies the actual
+// radio (which has a USB hardware ID) versus paired devices and protocol
+// services (which are software-emulated and lack one).
+func isBluetoothPnPEntity(e Win32_PnPEntity) bool {
 	return e.ClassGuid == GUID_DEVCLASS_BLUETOOTH
+}
+
+// isPhysicalPnPEntity returns true if the PnP entity represents real
+// physical hardware — i.e. its first hardware or compatible ID carries a
+// PCI\ or USB\ prefix. Software-emulated virtual adapters (Hyper-V
+// switches, OpenVPN TAP, virtual Bluetooth transports) lack such IDs and
+// are filtered out by this check.
+func isPhysicalPnPEntity(e Win32_PnPEntity) bool {
+	for _, hwid := range e.HardwareID {
+		if strings.HasPrefix(hwid, "PCI\\") || strings.HasPrefix(hwid, "USB\\") {
+			return true
+		}
+	}
+	for _, cid := range e.CompatibleID {
+		if strings.HasPrefix(cid, "PCI\\") || strings.HasPrefix(cid, "USB\\") {
+			return true
+		}
+	}
+	return false
 }
 
 // ResolvedGpuNames returns human-readable GPU names. The name comes from
@@ -157,13 +176,16 @@ func formatBytes(bytes uint64) string {
 	return fmt.Sprintf("%.1f GB", float64(bytes)/1e9)
 }
 
-// ResolvedNicNames returns human-readable NIC names. Uses the PnP device
-// name (driver-supplied or BIOS-supplied) when non-empty, with the PCI
-// vendor appended in parentheses. Falls back to the pci.ids-resolved name
-// (which already contains the vendor) only when the PnP name is empty.
+// ResolvedNicNames returns the names of physical network adapters and
+// Bluetooth radios as a flat list. Virtual adapters (Hyper-V switches,
+// OpenVPN TAP, Bluetooth transports, BT PAN, etc.) are filtered out by
+// requiring a PCI\ or USB\ hardware ID. Names are formatted as
+// "<PnP name> (<PCI vendor>)" — the vendor suffix is only present when
+// the PCI vendor lookup succeeds (i.e. for PCI devices, not USB radios
+// like Bluetooth where the VEN_XXXX regex doesn't match).
 func (i SysInfo) resolvedNicNames() ([]string, error) {
 	// Win32_PnPEntity is used so HardwareID and Name are available even
-	// when no NIC driver is installed.
+	// when no NIC or Bluetooth driver is installed.
 	entities, err := queryWMI[Win32_PnPEntity]()
 	if err != nil {
 		return nil, err
@@ -172,7 +194,10 @@ func (i SysInfo) resolvedNicNames() ([]string, error) {
 	var names []string
 	seen := make(map[string]bool)
 	for _, e := range entities {
-		if !isNicPnPEntity(e) && !isBluetoothRadioPnPEntity(e) {
+		if !isPhysicalPnPEntity(e) {
+			continue
+		}
+		if !isNicPnPEntity(e) && !isBluetoothPnPEntity(e) {
 			continue
 		}
 		pnpName := strings.TrimSpace(e.Name)
@@ -193,16 +218,13 @@ func (i SysInfo) resolvedNicNames() ([]string, error) {
 				}
 			}
 		}
-		if name == "" {
-			continue
-		}
-		if vendor != "" {
-			name = name + " (" + vendor + ")"
-		}
-		if seen[name] {
+		if name == "" || seen[name] {
 			continue
 		}
 		seen[name] = true
+		if vendor != "" {
+			name = name + " (" + vendor + ")"
+		}
 		names = append(names, name)
 	}
 
@@ -283,8 +305,8 @@ func (i SysInfo) ResolvedHardware() (ResolvedHardware, error) {
 	if names, err := i.resolvedMotherboardNames(); err == nil && names != nil {
 		hw.Motherboard = names
 	}
-	if names, err := i.resolvedNicNames(); err == nil && names != nil {
-		hw.Nic = names
+	if info, err := i.resolvedNicNames(); err == nil {
+		hw.Nic = info
 	}
 	if names, err := i.resolvedDiskNames(); err == nil && names != nil {
 		hw.Storage = names
