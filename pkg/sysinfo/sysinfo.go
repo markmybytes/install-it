@@ -34,12 +34,12 @@ func queryWMI[T any](where string) ([]T, error) {
 	return cls, nil
 }
 
-// isGpuPnPEntity returns true if the PnP entity is a GPU/display adapter.
+// isGpuDevice returns true if the PnP device is a GPU/display adapter.
 // Classification uses a 3-tier approach:
 //  1. ClassGuid matches GUID_DEVCLASS_DISPLAY
 //  2. CompatibleID contains "CC_03" (display class)
 //  3. Name contains display-related keywords
-func isGpuPnPEntity(e Win32_PnPEntity) bool {
+func isGpuDevice(e PnPDevice) bool {
 	if e.ClassGuid != "" {
 		return e.ClassGuid == GUID_DEVCLASS_DISPLAY
 	}
@@ -58,12 +58,12 @@ func isGpuPnPEntity(e Win32_PnPEntity) bool {
 		strings.Contains(nameUpper, "3D")
 }
 
-// isNicPnPEntity returns true if the PnP entity is a network adapter.
+// isNicDevice returns true if the PnP device is a network adapter.
 // Classification uses a 3-tier approach:
 //  1. ClassGuid matches GUID_DEVCLASS_NET
 //  2. CompatibleID contains "CC_02" (network class)
 //  3. Name contains network-related keywords
-func isNicPnPEntity(e Win32_PnPEntity) bool {
+func isNicDevice(e PnPDevice) bool {
 	if e.ClassGuid != "" {
 		return e.ClassGuid == GUID_DEVCLASS_NET
 	}
@@ -83,20 +83,20 @@ func isNicPnPEntity(e Win32_PnPEntity) bool {
 		strings.Contains(nameUpper, "WLAN")
 }
 
-// isBluetoothPnPEntity returns true if the PnP entity is in the Bluetooth
-// device class. Combined with isPhysicalPnPEntity, identifies the actual
+// isBluetoothDevice returns true if the PnP device is in the Bluetooth
+// device class. Combined with isPhysicalDevice, identifies the actual
 // radio (which has a USB hardware ID) versus paired devices and protocol
 // services (which are software-emulated and lack one).
-func isBluetoothPnPEntity(e Win32_PnPEntity) bool {
+func isBluetoothDevice(e PnPDevice) bool {
 	return e.ClassGuid == GUID_DEVCLASS_BLUETOOTH
 }
 
-// isPhysicalPnPEntity returns true if the PnP entity represents real
+// isPhysicalDevice returns true if the PnP device represents real
 // physical hardware — i.e. its first hardware or compatible ID carries a
 // PCI\ or USB\ prefix. Software-emulated virtual adapters (Hyper-V
 // switches, OpenVPN TAP, virtual Bluetooth transports) lack such IDs and
 // are filtered out by this check.
-func isPhysicalPnPEntity(e Win32_PnPEntity) bool {
+func isPhysicalDevice(e PnPDevice) bool {
 	for _, hwid := range e.HardwareID {
 		if strings.HasPrefix(hwid, "PCI\\") || strings.HasPrefix(hwid, "USB\\") {
 			return true
@@ -111,18 +111,13 @@ func isPhysicalPnPEntity(e Win32_PnPEntity) bool {
 }
 
 // resolvedGpuNames returns human-readable GPU names. The name comes from
-// Win32_PnPEntity (driver-independent). It runs a single PnP query that
-// covers both ClassGuid-filtered display devices and ClassGuid IS NULL
-// entities (handled client-side by isGpuPnPEntity's 3-tier fallback).
-func (i SysInfo) resolvedGpuNames() ([]string, error) {
-	entities, _ := queryWMI[Win32_PnPEntity](
-		"WHERE ClassGuid = '" + GUID_DEVCLASS_DISPLAY + "' OR ClassGuid IS NULL",
-	)
-
+// PnPDevice (driver-independent). It filters the provided devices using
+// isGpuDevice and resolves PCI vendor/device names.
+func resolvedGpuNames(devices []PnPDevice) []string {
 	var names []string
 	seen := make(map[string]bool)
-	for _, e := range entities {
-		if !isGpuPnPEntity(e) {
+	for _, e := range devices {
+		if !isGpuDevice(e) {
 			continue
 		}
 		pnpName := strings.TrimSpace(e.Name)
@@ -156,7 +151,7 @@ func (i SysInfo) resolvedGpuNames() ([]string, error) {
 		names = append(names, name)
 	}
 
-	return names, nil
+	return names
 }
 
 // resolvedNicNames returns the names of physical network adapters and
@@ -166,23 +161,14 @@ func (i SysInfo) resolvedGpuNames() ([]string, error) {
 // "<PnP name> (<PCI vendor>)" — the vendor suffix is only present when
 // the PCI vendor lookup succeeds (i.e. for PCI devices, not USB radios
 // like Bluetooth where the VEN_XXXX regex doesn't match).
-// It runs a single PnP query that covers both ClassGuid-filtered net +
-// Bluetooth devices and ClassGuid IS NULL entities (handled client-side
-// by isNicPnPEntity / isBluetoothPnPEntity / isPhysicalPnPEntity).
-func (i SysInfo) resolvedNicNames() ([]string, error) {
-	entities, _ := queryWMI[Win32_PnPEntity](
-		"WHERE ClassGuid = '" + GUID_DEVCLASS_NET +
-			"' OR ClassGuid = '" + GUID_DEVCLASS_BLUETOOTH +
-			"' OR ClassGuid IS NULL",
-	)
-
+func resolvedNicNames(devices []PnPDevice) []string {
 	var names []string
 	seen := make(map[string]bool)
-	for _, e := range entities {
-		if !isPhysicalPnPEntity(e) {
+	for _, e := range devices {
+		if !isPhysicalDevice(e) {
 			continue
 		}
-		if !isNicPnPEntity(e) && !isBluetoothPnPEntity(e) {
+		if !isNicDevice(e) && !isBluetoothDevice(e) {
 			continue
 		}
 		pnpName := strings.TrimSpace(e.Name)
@@ -213,7 +199,7 @@ func (i SysInfo) resolvedNicNames() ([]string, error) {
 		names = append(names, name)
 	}
 
-	return names, nil
+	return names
 }
 
 func (i SysInfo) resolvedCpuNames() ([]string, error) {
@@ -278,14 +264,12 @@ func (i SysInfo) ResolvedHardware() (ResolvedHardware, error) {
 		Storage:     []string{},
 	}
 
-	// Run the independent WMI queries concurrently. Each is a separate
-	// DCOM/RPC call to the WMI service, so they parallelize well. Errors
-	// are silently ignored per the existing contract — only the result is
-	// dropped.
-	//
-	// GPU and NIC resolvers are fully self-contained (they each query
-	// Win32_PnPEntity internally),
-	// so they are not part of the fan-out here.
+	// Run the independent WMI queries concurrently with the SetupAPI PnP
+	// enumeration. The WMI queries are each a separate DCOM/RPC call to
+	// the WMI service, so they parallelize well. SetupAPI enumeration
+	// does not contend on the WMI mutex, so it also runs truly in
+	// parallel. Errors are silently ignored per the existing contract —
+	// only the result is dropped.
 	var wg sync.WaitGroup
 
 	run := func(fn func()) {
@@ -297,28 +281,26 @@ func (i SysInfo) ResolvedHardware() (ResolvedHardware, error) {
 	}
 
 	var (
-		cpuRes  []string
-		memRes  []string
-		moboRes []string
-		diskRes []string
+		cpuRes     []string
+		memRes     []string
+		moboRes    []string
+		diskRes    []string
+		pnpDevices []PnPDevice
 	)
 
 	run(func() { cpuRes, _ = i.resolvedCpuNames() })
 	run(func() { memRes, _ = i.resolvedMemoryNames() })
 	run(func() { moboRes, _ = i.resolvedMotherboardNames() })
 	run(func() { diskRes, _ = i.resolvedDiskNames() })
+	run(func() { pnpDevices, _ = enumeratePnPDevices() })
 
 	wg.Wait()
 
-	// GPU and NIC resolvers are fully self-contained and run their own
-	// internal PnP queries after the parallel
-	// batch — the wmi library serializes all queries via a package-level
-	// mutex, so there is no additional wall-clock cost.
-	if names, err := i.resolvedGpuNames(); err == nil && len(names) > 0 {
-		hw.Gpu = names
+	if gpus := resolvedGpuNames(pnpDevices); len(gpus) > 0 {
+		hw.Gpu = gpus
 	}
-	if names, err := i.resolvedNicNames(); err == nil && len(names) > 0 {
-		hw.Nic = names
+	if nics := resolvedNicNames(pnpDevices); len(nics) > 0 {
+		hw.Nic = nics
 	}
 
 	if len(cpuRes) > 0 {

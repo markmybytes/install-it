@@ -205,31 +205,11 @@ type Win32_DiskDrive struct {
 	TracksPerCylinder           uint32
 }
 
-// Device setup class GUIDs for filtering Win32_PnPEntity by device type.
+// Device setup class GUIDs for classifying PnP devices by type.
 const (
 	GUID_DEVCLASS_DISPLAY   = "{4d36e968-e325-11ce-bfc1-08002be10318}"
 	GUID_DEVCLASS_NET       = "{4d36e972-e325-11ce-bfc1-08002be10318}"
 	GUID_DEVCLASS_BLUETOOTH = "{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}"
 )
 
-/*
-The Win32_PnPEntity WMI class represents a Plug and Play device on a Windows system.
-HardwareID and CompatibleID are populated by the bus enumerator and are available
-even when no driver is installed for the device.
 
-See: https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-pnpentity
-*/
-type Win32_PnPEntity struct {
-	DeviceID               string
-	PNPDeviceID            string
-	ClassGuid              string
-	HardwareID             []string
-	CompatibleID           []string
-	ConfigManagerErrorCode uint32
-	Manufacturer           string
-	Name                   string
-	Description            string
-	Service                string
-	Status                 string
-	Present                bool
-}
