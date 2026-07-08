@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 )
@@ -31,7 +32,7 @@ var getPCIDB = sync.OnceValue(func() *pciDB {
 
 // Search order:
 //  1. {exe_dir}/internals/data/pci.ids.gz — release
-//  2. pkg/sysinfo/data/pci.ids.gz — dev (relative to working directory)
+//  2. {pciids.go_dir}/data/pci.ids.gz — dev (relative to this source file)
 func loadPCIDB() *pciDB {
 	empty := &pciDB{vendors: map[string]string{}, products: map[string]string{}}
 
@@ -39,7 +40,10 @@ func loadPCIDB() *pciDB {
 	if exe, err := os.Executable(); err == nil {
 		paths = append(paths, filepath.Join(filepath.Dir(exe), "internals", "data", "pci.ids.gz"))
 	}
-	paths = append(paths, filepath.Join("pkg", "sysinfo", "data", "pci.ids.gz"))
+
+	if _, src, _, ok := runtime.Caller(0); ok {
+		paths = append(paths, filepath.Join(filepath.Dir(src), "data", "pci.ids.gz"))
+	}
 
 	var r io.ReadCloser
 	for _, p := range paths {
