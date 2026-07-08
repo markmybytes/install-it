@@ -141,7 +141,7 @@ func resolvedGpuNames(devices []PnPDevice) []string {
 		if name == "" {
 			continue
 		}
-		if vendor != "" {
+		if vendor != "" && e.InstallState != 0 {
 			name = name + " (" + vendor + ")"
 		}
 		if seen[name] {
@@ -193,7 +193,7 @@ func resolvedNicNames(devices []PnPDevice) []string {
 			continue
 		}
 		seen[name] = true
-		if vendor != "" {
+		if vendor != "" && e.InstallState != 0 {
 			name = name + " (" + vendor + ")"
 		}
 		names = append(names, name)

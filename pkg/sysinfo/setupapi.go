@@ -10,6 +10,7 @@ type PnPDevice struct {
 	HardwareID   []string
 	CompatibleID []string
 	Name         string
+	InstallState uint32 // 0 = CM_INSTALL_STATE_INSTALLED (driver fully installed)
 }
 
 // getDeviceString retrieves a string registry property from a device.
@@ -71,11 +72,19 @@ func enumeratePnPDevices() ([]PnPDevice, error) {
 			continue
 		}
 
+		var installState uint32
+		if val, err := windows.SetupDiGetDeviceRegistryProperty(devInfo, data, windows.SPDRP_INSTALL_STATE); err == nil {
+			if v, ok := val.(uint32); ok {
+				installState = v
+			}
+		}
+
 		devices = append(devices, PnPDevice{
 			ClassGuid:    getDeviceString(devInfo, data, windows.SPDRP_CLASSGUID),
 			HardwareID:   getDeviceStringSlice(devInfo, data, windows.SPDRP_HARDWAREID),
 			CompatibleID: getDeviceStringSlice(devInfo, data, windows.SPDRP_COMPATIBLEIDS),
 			Name:         getDeviceString(devInfo, data, windows.SPDRP_DEVICEDESC),
+			InstallState: installState,
 		})
 		index++
 	}
