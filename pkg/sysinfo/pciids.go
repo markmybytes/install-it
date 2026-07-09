@@ -30,9 +30,6 @@ var getPCIDB = sync.OnceValue(func() *pciDB {
 	return loadPCIDB()
 })
 
-// Search order:
-//  1. {exe_dir}/internals/data/pci.ids.gz — release
-//  2. {pciids.go_dir}/data/pci.ids.gz — dev (relative to this source file)
 func loadPCIDB() *pciDB {
 	empty := &pciDB{vendors: map[string]string{}, products: map[string]string{}}
 

@@ -4,6 +4,112 @@ import (
 	"testing"
 )
 
+// TestResolveDeviceNames tests the resolveDeviceNames function.
+func TestResolveDeviceNames(t *testing.T) {
+	// An always-true filter for most test cases.
+	includeAll := func(PnPDevice) bool { return true }
+	// A filter that always returns false.
+	includeNone := func(PnPDevice) bool { return false }
+
+	tests := []struct {
+		name     string
+		devices  []PnPDevice
+		include  func(PnPDevice) bool
+		expected []string
+	}{
+		{
+			name: "Installed device with vendor → no suffix (InstallState == 0)",
+			devices: []PnPDevice{
+				{
+					Name:         "NVIDIA GeForce RTX 3080",
+					HardwareID:   []string{"PCI\\VEN_10DE&DEV_2208&SUBSYS_220810DE&REV_A1"},
+					InstallState: 0,
+				},
+			},
+			include:  includeAll,
+			expected: []string{"NVIDIA GeForce RTX 3080"},
+		},
+		{
+			name: "Device with vendor and InstallState != 0 → suffix appended",
+			devices: []PnPDevice{
+				{
+					Name:         "NVIDIA GeForce RTX 3080",
+					HardwareID:   []string{"PCI\\VEN_10DE&DEV_2208&SUBSYS_220810DE&REV_A1"},
+					InstallState: 1,
+				},
+			},
+			include:  includeAll,
+			expected: []string{"NVIDIA GeForce RTX 3080 (NVIDIA Corporation)"},
+		},
+		{
+			name: "Empty PnP name → falls back to ResolvePciName",
+			devices: []PnPDevice{
+				{
+					Name:         "",
+					HardwareID:   []string{"PCI\\VEN_10DE&DEV_2208&SUBSYS_220810DE&REV_A1"},
+					InstallState: 0,
+				},
+			},
+			include:  includeAll,
+			expected: []string{"NVIDIA Corporation GA102 [GeForce RTX 3080 Ti]"},
+		},
+		{
+			name: "Empty PnP name and unresolvable PCI ID → skipped",
+			devices: []PnPDevice{
+				{
+					Name:         "",
+					HardwareID:   []string{"PCI\\VEN_C0FF&DEV_EEEE"},
+					InstallState: 0,
+				},
+			},
+			include:  includeAll,
+			expected: nil,
+		},
+		{
+			name: "Two identical devices → both appear (no dedup)",
+			devices: []PnPDevice{
+				{
+					Name:         "Realtek PCIe GbE Family Controller",
+					HardwareID:   []string{"PCI\\VEN_10EC&DEV_8168"},
+					InstallState: 0,
+				},
+				{
+					Name:         "Realtek PCIe GbE Family Controller",
+					HardwareID:   []string{"PCI\\VEN_10EC&DEV_8168"},
+					InstallState: 0,
+				},
+			},
+			include:  includeAll,
+			expected: []string{"Realtek PCIe GbE Family Controller", "Realtek PCIe GbE Family Controller"},
+		},
+		{
+			name: "Device excluded by filter → not in output",
+			devices: []PnPDevice{
+				{
+					Name: "NVIDIA GeForce RTX 3080",
+				},
+			},
+			include:  includeNone,
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveDeviceNames(tt.devices, tt.include)
+			if len(got) != len(tt.expected) {
+				t.Fatalf("resolveDeviceNames() = %v (len=%d), want %v (len=%d)",
+					got, len(got), tt.expected, len(tt.expected))
+			}
+			for i := range got {
+				if got[i] != tt.expected[i] {
+					t.Errorf("resolveDeviceNames()[%d] = %q, want %q", i, got[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
 // TestIsGpuDevice tests the classification of PnP devices as GPUs.
 func TestIsGpuDevice(t *testing.T) {
 	tests := []struct {

@@ -1,5 +1,21 @@
 package sysinfo
 
+import (
+	"github.com/yusufpapurcu/wmi"
+)
+
+// queryWMI executes a WMI query returning all instances of the given type.
+// Pass "" for an unfiltered query, or a full clause like
+// "WHERE ClassGuid = '...'" for server-side filtering.
+func queryWMI[T any](where string) ([]T, error) {
+	var cls []T
+	q := wmi.CreateQuery(&cls, where)
+	if err := wmi.Query(q, &cls); err != nil {
+		return cls, err
+	}
+	return cls, nil
+}
+
 /*
 The Win32_Processor WMI class represents a device that can interpret a sequence of instructions on a computer running on a Windows operating system.
 
@@ -204,12 +220,3 @@ type Win32_DiskDrive struct {
 	TotalTracks                 uint64
 	TracksPerCylinder           uint32
 }
-
-// Device setup class GUIDs for classifying PnP devices by type.
-const (
-	GUID_DEVCLASS_DISPLAY   = "{4d36e968-e325-11ce-bfc1-08002be10318}"
-	GUID_DEVCLASS_NET       = "{4d36e972-e325-11ce-bfc1-08002be10318}"
-	GUID_DEVCLASS_BLUETOOTH = "{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}"
-)
-
-
