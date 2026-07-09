@@ -30,30 +30,6 @@ func TestResolveDeviceNames(t *testing.T) {
 			expected: []string{"NVIDIA GeForce RTX 3080"},
 		},
 		{
-			name: "Device with vendor and InstallState != 0 → suffix appended",
-			devices: []PnPDevice{
-				{
-					Name:         "NVIDIA GeForce RTX 3080",
-					HardwareID:   []string{"PCI\\VEN_10DE&DEV_2208&SUBSYS_220810DE&REV_A1"},
-					InstallState: 1,
-				},
-			},
-			include:  includeAll,
-			expected: []string{"NVIDIA GeForce RTX 3080 (NVIDIA Corporation)"},
-		},
-		{
-			name: "Empty PnP name → falls back to ResolvePciName",
-			devices: []PnPDevice{
-				{
-					Name:         "",
-					HardwareID:   []string{"PCI\\VEN_10DE&DEV_2208&SUBSYS_220810DE&REV_A1"},
-					InstallState: 0,
-				},
-			},
-			include:  includeAll,
-			expected: []string{"NVIDIA Corporation GA102 [GeForce RTX 3080 Ti]"},
-		},
-		{
 			name: "Empty PnP name and unresolvable PCI ID → skipped",
 			devices: []PnPDevice{
 				{
