@@ -1,5 +1,21 @@
 package sysinfo
 
+import (
+	"github.com/yusufpapurcu/wmi"
+)
+
+// queryWMI executes a WMI query returning all instances of the given type.
+// Pass "" for an unfiltered query, or a full clause like
+// "WHERE ClassGuid = '...'" for server-side filtering.
+func queryWMI[T any](where string) ([]T, error) {
+	var cls []T
+	q := wmi.CreateQuery(&cls, where)
+	if err := wmi.Query(q, &cls); err != nil {
+		return cls, err
+	}
+	return cls, nil
+}
+
 /*
 The Win32_Processor WMI class represents a device that can interpret a sequence of instructions on a computer running on a Windows operating system.
 
@@ -203,33 +219,4 @@ type Win32_DiskDrive struct {
 	TotalSectors                uint64
 	TotalTracks                 uint64
 	TracksPerCylinder           uint32
-}
-
-// Device setup class GUIDs for filtering Win32_PnPEntity by device type.
-const (
-	GUID_DEVCLASS_DISPLAY   = "{4d36e968-e325-11ce-bfc1-08002be10318}"
-	GUID_DEVCLASS_NET       = "{4d36e972-e325-11ce-bfc1-08002be10318}"
-	GUID_DEVCLASS_BLUETOOTH = "{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}"
-)
-
-/*
-The Win32_PnPEntity WMI class represents a Plug and Play device on a Windows system.
-HardwareID and CompatibleID are populated by the bus enumerator and are available
-even when no driver is installed for the device.
-
-See: https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-pnpentity
-*/
-type Win32_PnPEntity struct {
-	DeviceID               string
-	PNPDeviceID            string
-	ClassGuid              string
-	HardwareID             []string
-	CompatibleID           []string
-	ConfigManagerErrorCode uint32
-	Manufacturer           string
-	Name                   string
-	Description            string
-	Service                string
-	Status                 string
-	Present                bool
 }
