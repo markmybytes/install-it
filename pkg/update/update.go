@@ -33,7 +33,7 @@ func (u *Updater) httpGet(url string) (*http.Response, error) {
 }
 
 func (u *Updater) releasesURL(latest bool) string {
-	base := "https://api.github.com/repos/install-it/install-it"
+	base := "https://api.github.com/repos/markmybytes/install-it"
 	if u.apiBase != "" {
 		base = u.apiBase
 	}

@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    uses: install-it/install-it/.github/workflows/test.yml@main
+    uses: markmybytes/install-it/.github/workflows/test.yml@main
 
   build:
     needs: test

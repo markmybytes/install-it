@@ -16,7 +16,7 @@
 
 <!-- PROJECT LOGO -->
 <div align="center">
-  <a href="https://github.com/install-it/install-it">
+  <a href="https://github.com/markmybytes/install-it">
     <img src="https://github.com/user-attachments/assets/ea47a738-6f1e-4e8d-bde0-4f12118ff103" alt="Logo" width="80" height="80">
   </a>
 
@@ -25,15 +25,15 @@
   <p align="center">
     A Driver/Software Installation Tool
     <br>
-    <a href="https://github.com/install-it/install-it/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+    <a href="https://github.com/markmybytes/install-it/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
     ·
-    <a href="https://github.com/install-it/install-it/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    <a href="https://github.com/markmybytes/install-it/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
   </p>
 
   <p align="center">
-    <a href="https://github.com/install-it/install-it//README.md">English</a>
+    <a href="https://github.com/markmybytes/install-it//README.md">English</a>
     ·
-    <a href="https://github.com/install-it/install-it/readme/README.zh_Hant.md">繁體中文</a>
+    <a href="https://github.com/markmybytes/install-it/readme/README.zh_Hant.md">繁體中文</a>
   </p>
 </div>
 
@@ -49,11 +49,11 @@ install-it is a PC setup assistant tool that aims to simplify and speed up the d
 It allows you to **preload a bunch of driver installers** and then **select the most suitable ones to install** during the setup of a new PC. <br />
 Beyond drivers, installing softwares, and executing commands are also possible in install-it, see [Usage](#usage) section for more.
 
-| Download :arrow_down: | [Latest Release](https://github.com/install-it/install-it/releases/latest) |
+| Download :arrow_down: | [Latest Release](https://github.com/markmybytes/install-it/releases/latest) |
 |-----------------------|-----------------------------------------------------------------------------|
 
 > [!NOTE]  
-> install-it does not include any driver installers in releases. You may check out [it-claws](https://github.com/install-it/it-claws), a CLI tool that automatically download common hardware drivers.
+> install-it does not include any driver installers in releases. You may check out [it-claws](https://github.com/markmybytes/it-claws), a CLI tool that automatically download common hardware drivers.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -186,15 +186,15 @@ Select all the suitable software in the home page and click `Execute`. A popup w
 
 
 <!-- MARKDOWN LINKS & IMAGES -->
-[tag-url]: https://github.com/install-it/install-it/releases
-[tag-shield]: https://img.shields.io/github/v/tag/install-it/install-it?style=for-the-badge&label=LATEST&color=%23B1B1B1
-[contributors-shield]: https://img.shields.io/github/contributors/install-it/install-it.svg?style=for-the-badge
-[contributors-url]: https://github.com/install-it/install-it/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/install-it/install-it.svg?style=for-the-badge
-[forks-url]: https://github.com/install-it/install-it/network/members
-[stars-shield]: https://img.shields.io/github/stars/install-it/install-it.svg?style=for-the-badge
-[stars-url]: https://github.com/install-it/install-it/stargazers
-[issues-shield]: https://img.shields.io/github/issues/install-it/install-it.svg?style=for-the-badge
-[issues-url]: https://github.com/install-it/install-it/issues
-[license-shield]: https://img.shields.io/github/license/install-it/install-it.svg?style=for-the-badge
-[license-url]: https://github.com/install-it/install-it/blob/master/LICENSE
+[tag-url]: https://github.com/markmybytes/install-it/releases
+[tag-shield]: https://img.shields.io/github/v/tag/markmybytes/install-it?style=for-the-badge&label=LATEST&color=%23B1B1B1
+[contributors-shield]: https://img.shields.io/github/contributors/markmybytes/install-it.svg?style=for-the-badge
+[contributors-url]: https://github.com/markmybytes/install-it/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/markmybytes/install-it.svg?style=for-the-badge
+[forks-url]: https://github.com/markmybytes/install-it/network/members
+[stars-shield]: https://img.shields.io/github/stars/markmybytes/install-it.svg?style=for-the-badge
+[stars-url]: https://github.com/markmybytes/install-it/stargazers
+[issues-shield]: https://img.shields.io/github/issues/markmybytes/install-it.svg?style=for-the-badge
+[issues-url]: https://github.com/markmybytes/install-it/issues
+[license-shield]: https://img.shields.io/github/license/markmybytes/install-it.svg?style=for-the-badge
+[license-url]: https://github.com/markmybytes/install-it/blob/master/LICENSE
