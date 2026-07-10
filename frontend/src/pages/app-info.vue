@@ -185,11 +185,11 @@ function checkUpdate() {
 
           <div class="col-span-5">
             <a
-              href="https://github.com/install-it/install-it"
+              href="https://github.com/markmybytes/install-it"
               class="text-sky-700 underline"
               @click.prevent="event => BrowserOpenURL((event.target as HTMLAnchorElement).href)"
             >
-              https://github.com/install-it/install-it
+              https://github.com/markmybytes/install-it
             </a>
           </div>
         </div>
@@ -199,11 +199,11 @@ function checkUpdate() {
 
           <div class="col-span-5">
             <a
-              href="https://github.com/install-it/install-it/issues"
+              href="https://github.com/markmybytes/install-it/issues"
               class="text-sky-700 underline"
               @click.prevent="event => BrowserOpenURL((event.target as HTMLAnchorElement).href)"
             >
-              https://github.com/install-it/install-it/issues
+              https://github.com/markmybytes/install-it/issues
             </a>
           </div>
         </div>
@@ -221,7 +221,7 @@ function checkUpdate() {
                 variant="link"
                 size="md"
                 @click="
-                  BrowserOpenURL('https://github.com/install-it/install-it/blob/main/LICENSE')
+                  BrowserOpenURL('https://github.com/markmybytes/install-it/blob/main/LICENSE')
                 "
               >
                 <Icon icon="mdi:open-in-new" />

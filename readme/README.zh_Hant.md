@@ -15,7 +15,7 @@ Ks
 
 <!-- PROJECT LOGO -->
 <div align="center">
-  <a href="https://github.com/install-it/install-it">
+  <a href="https://github.com/markmybytes/install-it">
     <img src="https://github.com/user-attachments/assets/ea47a738-6f1e-4e8d-bde0-4f12118ff103" alt="Logo" width="80" height="80">
   </a>
 
@@ -24,15 +24,15 @@ Ks
   <p align="center">
     程式／軀動安裝工具
     <br>
-    <a href="https://github.com/install-it/install-it/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+    <a href="https://github.com/markmybytes/install-it/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
     ·
-    <a href="https://github.com/install-it/install-it/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    <a href="https://github.com/markmybytes/install-it/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
   </p>
 
   <p align="center">
-    <a href="https://github.com/install-it/install-it//README.md">English</a>
+    <a href="https://github.com/markmybytes/install-it//README.md">English</a>
     ·
-    <a href="https://github.com/install-it/install-it/readme/README.zh_Hant.md">繁體中文</a>
+    <a href="https://github.com/markmybytes/install-it/readme/README.zh_Hant.md">繁體中文</a>
   </p>
 </div>
 
@@ -47,7 +47,7 @@ Ks
 install-it 是一個軀動程式安裝工具，旨在減少安裝大量硬件軀動所需的時間。它允許您預先加入驅動程式安裝檔至工具內，並在新電腦設定過程中選擇最合適的驅動程式進行安裝。<br />
 除了驅動程式之外，install-it 還支援安裝軟體及執行指令，詳情請參閱[使用](#使用)。
 
-| 下載 :arrow_down: | [Latest Release](https://github.com/install-it/install-it/releases/latest) |
+| 下載 :arrow_down: | [Latest Release](https://github.com/markmybytes/install-it/releases/latest) |
 |-------------------|-----------------------------------------------------------------------------|
 
 > [!NOTE]
@@ -181,15 +181,15 @@ install-it 是一個軀動程式安裝工具，旨在減少安裝大量硬件軀
 
 
 <!-- MARKDOWN LINKS & IMAGES -->
-[tag-url]: https://github.com/install-it/install-it/releases
-[tag-shield]: https://img.shields.io/github/v/tag/install-it/install-it?style=for-the-badge&label=LATEST&color=%23B1B1B1
-[contributors-shield]: https://img.shields.io/github/contributors/install-it/install-it.svg?style=for-the-badge
-[contributors-url]: https://github.com/install-it/install-it/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/install-it/install-it.svg?style=for-the-badge
-[forks-url]: https://github.com/install-it/install-it/network/members
-[stars-shield]: https://img.shields.io/github/stars/install-it/install-it.svg?style=for-the-badge
-[stars-url]: https://github.com/install-it/install-it/stargazers
-[issues-shield]: https://img.shields.io/github/issues/install-it/install-it.svg?style=for-the-badge
-[issues-url]: https://github.com/install-it/install-it/issues
-[license-shield]: https://img.shields.io/github/license/install-it/install-it.svg?style=for-the-badge
-[license-url]: https://github.com/install-it/install-it/blob/master/LICENSE.txt
+[tag-url]: https://github.com/markmybytes/install-it/releases
+[tag-shield]: https://img.shields.io/github/v/tag/markmybytes/install-it?style=for-the-badge&label=LATEST&color=%23B1B1B1
+[contributors-shield]: https://img.shields.io/github/contributors/markmybytes/install-it.svg?style=for-the-badge
+[contributors-url]: https://github.com/markmybytes/install-it/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/markmybytes/install-it.svg?style=for-the-badge
+[forks-url]: https://github.com/markmybytes/install-it/network/members
+[stars-shield]: https://img.shields.io/github/stars/markmybytes/install-it.svg?style=for-the-badge
+[stars-url]: https://github.com/markmybytes/install-it/stargazers
+[issues-shield]: https://img.shields.io/github/issues/markmybytes/install-it.svg?style=for-the-badge
+[issues-url]: https://github.com/markmybytes/install-it/issues
+[license-shield]: https://img.shields.io/github/license/markmybytes/install-it.svg?style=for-the-badge
+[license-url]: https://github.com/markmybytes/install-it/blob/master/LICENSE.txt
