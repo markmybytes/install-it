@@ -18,6 +18,9 @@ jobs:
         with:
           go-version-file: "go.mod"
 
+      - name: Generate PCI ID database
+        run: go generate ./pkg/sysinfo/...
+
       - name: Run tests
         run: go test ./pkg/...
 

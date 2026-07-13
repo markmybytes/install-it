@@ -59,6 +59,30 @@ func TestResolveDeviceNames(t *testing.T) {
 			expected: []string{"Realtek PCIe GbE Family Controller", "Realtek PCIe GbE Family Controller"},
 		},
 		{
+			name: "Uninstalled generic PnP name → PCI name used",
+			devices: []PnPDevice{
+				{
+					Name:         "Microsoft Basic Display Adapter",
+					HardwareID:   []string{"PCI\\VEN_10DE&DEV_2208&SUBSYS_220810DE&REV_A1"},
+					InstallState: 1,
+				},
+			},
+			include:  includeAll,
+			expected: []string{"NVIDIA Corporation GA102 [GeForce RTX 3080 Ti]"},
+		},
+		{
+			name: "Uninstalled generic PnP, unresolvable PCI → fallback to PnP",
+			devices: []PnPDevice{
+				{
+					Name:         "Microsoft Basic Display Adapter",
+					HardwareID:   []string{"PCI\\VEN_C0FF&DEV_EEEE"},
+					InstallState: 1,
+				},
+			},
+			include:  includeAll,
+			expected: []string{"Microsoft Basic Display Adapter"},
+		},
+		{
 			name: "Device excluded by filter → not in output",
 			devices: []PnPDevice{
 				{
