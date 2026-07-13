@@ -29,22 +29,33 @@ func resolveDeviceNames(devices []PnPDevice, include func(PnPDevice) bool) []str
 		}
 		pnpName := strings.TrimSpace(e.Name)
 		var name, vendor string
-		if pnpName != "" {
+
+		if pnpName != "" && e.InstallState == 0 {
+			// Driver installed — PnP name is the real device name.
 			name = pnpName
-			for _, hwid := range e.HardwareID {
-				if v := ResolvePciVendor(hwid); v != "" {
-					vendor = v
-					break
-				}
-			}
 		} else {
+			// Empty PnP name, or driver not installed (PnP name is generic
+			// "Microsoft Basic Display Adapter", localized). Try the PCI ID
+			// database for the actual hardware name first.
 			for _, hwid := range e.HardwareID {
 				if n := ResolvePciName(hwid); n != "" {
 					name = n
 					break
 				}
 			}
+			if name == "" {
+				// PCI resolution failed — use PnP name as fallback
+				// with vendor suffix for context.
+				name = pnpName
+				for _, hwid := range e.HardwareID {
+					if v := ResolvePciVendor(hwid); v != "" {
+						vendor = v
+						break
+					}
+				}
+			}
 		}
+
 		if name == "" {
 			continue
 		}
