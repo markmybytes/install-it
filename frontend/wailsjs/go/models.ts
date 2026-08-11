@@ -312,6 +312,22 @@ export namespace storage {
 
 export namespace sysinfo {
 	
+	export class OSInfo {
+	    caption: string;
+	    displayVersion: string;
+	    activated: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new OSInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.caption = source["caption"];
+	        this.displayVersion = source["displayVersion"];
+	        this.activated = source["activated"];
+	    }
+	}
 	export class ResolvedHardware {
 	    cpu: string[];
 	    gpu: string[];

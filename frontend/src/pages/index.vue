@@ -4,9 +4,9 @@ import { type Command } from '@/types/execute'
 import * as utils from '@/utils'
 import * as executor from '@/wailsjs/go/execute/CommandExecutor'
 import * as matcher from '@/wailsjs/go/matching/Matcher'
+import { sysinfo } from '@/wailsjs/go/models'
 import { computed, onBeforeMount, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { sysinfo } from '@/wailsjs/go/models'
 
 const { t } = useI18n()
 
@@ -27,14 +27,18 @@ const groups = computed(() =>
     : groupStore.groups
 )
 
-const hwinfos = ref<sysinfo.ResolvedHardware | null>(null)
+const systemInfo = ref<{ hw: sysinfo.ResolvedHardware | null; os: sysinfo.OSInfo | null }>({
+  hw: null,
+  os: null
+})
 
 const selectedNetwork = ref<number>(0)
 const selectedDisplay = ref<number>(0)
 const selectedMiscellaneous = ref<number[]>([])
 
 onBeforeMount(() => {
-  utils.getHardware().then(v => (hwinfos.value = v))
+  utils.getHardware().then(v => (systemInfo.value.hw = v))
+  utils.getOSInfo().then(v => (systemInfo.value.os = v))
 })
 
 function selectMatchedOptions() {
@@ -162,8 +166,8 @@ async function handleSubmit() {
 <template>
   <div class="flex h-full flex-col">
     <div class="flex flex-1 flex-col gap-y-1 overflow-y-auto rounded-sm border p-1">
-      <template v-if="hwinfos !== null">
-        <div v-for="[part, names] in Object.entries(hwinfos)" :key="part">
+      <template v-if="systemInfo.hw !== null && systemInfo.os !== null">
+        <div v-for="[part, names] in Object.entries(systemInfo.hw)" :key="part">
           <h2 class="text-sm font-bold">{{ $t(hwKey(part)) }}</h2>
 
           <p
@@ -179,10 +183,22 @@ async function handleSubmit() {
             {{ name }}
           </p>
         </div>
+
+        <div>
+          <h2 class="text-sm font-bold">{{ $t('hwOs') }}</h2>
+
+          <p class="text-sm">
+            {{ [systemInfo.os!.caption, systemInfo.os!.displayVersion].filter(Boolean).join(' ') }}
+            —
+            {{
+              $t(systemInfo.os!.activated ? 'osActivationActivated' : 'osActivationNotActivated')
+            }}
+          </p>
+        </div>
       </template>
 
       <template v-else>
-        <div v-for="i in 6" :key="i">
+        <div v-for="i in 7" :key="i">
           <h2 class="mb-1 h-5">
             <USkeleton class="h-4" :style="{ width: `${Math.random() * (25 - 15) + 15}%` }" />
           </h2>

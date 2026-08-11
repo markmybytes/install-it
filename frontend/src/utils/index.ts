@@ -44,6 +44,13 @@ export async function getHardware() {
 }
 
 /**
+ * Retrieves OS info (caption, display version, activation status).
+ */
+export async function getOSInfo() {
+  return libsysi.OSInfo()
+}
+
+/**
  * Tests whether the given input string satisfies the specified match rule.
  */
 export function testMatchRule(rule: storage.Rule, input: string) {

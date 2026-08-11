@@ -4,6 +4,20 @@ import (
 	"github.com/yusufpapurcu/wmi"
 )
 
+// ponytail: only Caption is read here. DisplayVersion (e.g. "25H2") is a
+// registry value, not a WMI property, and is read separately in resolveOS.
+// See https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-operatingsystem
+type Win32_OperatingSystem struct {
+	Caption string
+}
+
+// ponytail: LicenseStatus 1 = Licensed, 0 = Unlicensed.
+// See https://learn.microsoft.com/en-us/windows/win32/wmisdk/license-status
+type SoftwareLicensingProduct struct {
+	ApplicationId string
+	LicenseStatus uint32
+}
+
 // queryWMI executes a WMI query returning all instances of the given type.
 // Pass "" for an unfiltered query, or a full clause like
 // "WHERE ClassGuid = '...'" for server-side filtering.
