@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 // ResolvedHardware holds all resolved hardware names in a single struct
@@ -15,6 +17,14 @@ type ResolvedHardware struct {
 	Motherboard []string `json:"motherboard"`
 	Nic         []string `json:"nic"`
 	Storage     []string `json:"storage"`
+}
+
+// OSInfo carries raw OS data; the frontend assembles and translates.
+// Returned by SysInfo.OSInfo() as a separate binding.
+type OSInfo struct {
+	Caption        string `json:"caption"`
+	DisplayVersion string `json:"displayVersion"`
+	Activated      bool   `json:"activated"`
 }
 
 type SysInfo struct{}
@@ -113,4 +123,45 @@ func (i SysInfo) ResolvedHardware() (ResolvedHardware, error) {
 		}),
 		Storage: diskRes,
 	}, nil
+}
+
+// OSInfo returns structured OS data, or nil if the WMI query finds no OS.
+func (i SysInfo) OSInfo() (*OSInfo, error) {
+	return resolveOS(), nil
+}
+
+// resolveOS returns structured OS data. Returns nil when no Caption is
+// available, which the frontend treats as "no OS section".
+func resolveOS() *OSInfo {
+	const winAppId = "55c92734-d682-4d71-983e-d6ec3f16059f"
+	const versionKey = `SOFTWARE\Microsoft\Windows NT\CurrentVersion`
+
+	oss, _ := queryWMI[Win32_OperatingSystem]("")
+	if len(oss) == 0 {
+		return nil
+	}
+	caption := strings.TrimSpace(oss[0].Caption)
+	if caption == "" {
+		return nil
+	}
+
+	displayVersion := ""
+	k, _ := registry.OpenKey(registry.LOCAL_MACHINE, versionKey, registry.QUERY_VALUE)
+	defer k.Close()
+	if dv, _, err := k.GetStringValue("DisplayVersion"); err == nil {
+		displayVersion = strings.TrimSpace(dv)
+	}
+
+	// ponytail: 1 query. Absence of LicenseStatus=1 rows ⇒ not activated.
+	activated := false
+	if lics, _ := queryWMI[SoftwareLicensingProduct](
+		"WHERE LicenseStatus = 1 AND ApplicationId = '" + winAppId + "'"); len(lics) > 0 {
+		activated = true
+	}
+
+	return &OSInfo{
+		Caption:        caption,
+		DisplayVersion: displayVersion,
+		Activated:      activated,
+	}
 }
