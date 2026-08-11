@@ -18,7 +18,7 @@ func TestResolveDeviceNames(t *testing.T) {
 		expected []string
 	}{
 		{
-			name: "Installed device with vendor → no suffix (InstallState == 0)",
+			name: "Installed device with resolvable PCI → PCI name used (always preferred over PnP)",
 			devices: []PnPDevice{
 				{
 					Name:         "NVIDIA GeForce RTX 3080",
@@ -27,7 +27,7 @@ func TestResolveDeviceNames(t *testing.T) {
 				},
 			},
 			include:  includeAll,
-			expected: []string{"NVIDIA GeForce RTX 3080"},
+			expected: []string{"NVIDIA Corporation GA102 [GeForce RTX 3080 Ti]"},
 		},
 		{
 			name: "Empty PnP name and unresolvable PCI ID → skipped",
@@ -56,10 +56,22 @@ func TestResolveDeviceNames(t *testing.T) {
 				},
 			},
 			include:  includeAll,
-			expected: []string{"Realtek PCIe GbE Family Controller", "Realtek PCIe GbE Family Controller"},
+			expected: []string{"Realtek Semiconductor Co., Ltd. RTL8111/8168/8211/8411 PCI Express Gigabit Ethernet Controller", "Realtek Semiconductor Co., Ltd. RTL8111/8168/8211/8411 PCI Express Gigabit Ethernet Controller"},
 		},
 		{
-			name: "Uninstalled generic PnP name → PCI name used",
+			name: "MS Basic Display Adapter with InstallState==0 (fallback driver) → PCI name used",
+			devices: []PnPDevice{
+				{
+					Name:         "Microsoft Basic Display Adapter",
+					HardwareID:   []string{"PCI\\VEN_10DE&DEV_2208&SUBSYS_220810DE&REV_A1"},
+					InstallState: 0,
+				},
+			},
+			include:  includeAll,
+			expected: []string{"NVIDIA Corporation GA102 [GeForce RTX 3080 Ti]"},
+		},
+		{
+			name: "Uninstalled generic PnP name (InstallState!=0) → PCI name used",
 			devices: []PnPDevice{
 				{
 					Name:         "Microsoft Basic Display Adapter",
@@ -71,16 +83,28 @@ func TestResolveDeviceNames(t *testing.T) {
 			expected: []string{"NVIDIA Corporation GA102 [GeForce RTX 3080 Ti]"},
 		},
 		{
-			name: "Uninstalled generic PnP, unresolvable PCI → fallback to PnP",
+			name: "Known vendor but unknown device → ResolvePciName returns vendor name",
 			devices: []PnPDevice{
 				{
 					Name:         "Microsoft Basic Display Adapter",
-					HardwareID:   []string{"PCI\\VEN_C0FF&DEV_EEEE"},
+					HardwareID:   []string{"PCI\\VEN_10DE&DEV_EEEE"},
 					InstallState: 1,
 				},
 			},
 			include:  includeAll,
-			expected: []string{"Microsoft Basic Display Adapter"},
+			expected: []string{"NVIDIA Corporation"},
+		},
+		{
+			name: "Generic PnP, unresolvable PCI, InstallState==0 → PnP name (no suffix)",
+			devices: []PnPDevice{
+				{
+					Name:         "Unknown Display Device",
+					HardwareID:   []string{"PCI\\VEN_C0FF&DEV_EEEE"},
+					InstallState: 0,
+				},
+			},
+			include:  includeAll,
+			expected: []string{"Unknown Display Device"},
 		},
 		{
 			name: "Device excluded by filter → not in output",
