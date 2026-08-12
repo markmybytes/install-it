@@ -40,27 +40,27 @@ func resolveDeviceNames(devices []PnPDevice, include func(PnPDevice) bool) []str
 		pnpName := strings.TrimSpace(e.Name)
 		var name, vendor string
 
-		// Always try the PCI ID database first. The PnP name is unreliable
-		// when a generic fallback driver is loaded (e.g. Microsoft Basic
-		// Display Adapter from display.inf), because InstallState is 0
-		// (CM_INSTALL_STATE_INSTALLED) even though the real vendor driver
-		// is not present.
-		for _, hwid := range e.HardwareID {
-			if n := ResolvePciName(hwid); n != "" {
-				name = n
-				break
-			}
-		}
-		if name == "" {
-			// PCI resolution failed — use PnP name as fallback.
-			// Append vendor suffix for context when the driver is not
-			// properly installed.
+		if pnpName != "" && !isFallbackDriver(e) {
+			// Real driver loaded — use PnP marketing name.
 			name = pnpName
-			if e.InstallState != 0 {
-				for _, hwid := range e.HardwareID {
-					if v := ResolvePciVendor(hwid); v != "" {
-						vendor = v
-						break
+		} else {
+			// No real driver — try PCI ID database for hardware name.
+			for _, hwid := range e.HardwareID {
+				if n := ResolvePciName(hwid); n != "" {
+					name = n
+					break
+				}
+			}
+			if name == "" {
+				// PCI resolution failed — fall back to PnP name with
+				// vendor suffix when driver not properly installed.
+				name = pnpName
+				if e.InstallState != 0 {
+					for _, hwid := range e.HardwareID {
+						if v := ResolvePciVendor(hwid); v != "" {
+							vendor = v
+							break
+						}
 					}
 				}
 			}

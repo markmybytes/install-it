@@ -18,16 +18,17 @@ func TestResolveDeviceNames(t *testing.T) {
 		expected []string
 	}{
 		{
-			name: "Installed device with resolvable PCI → PCI name used (always preferred over PnP)",
+			name: "Installed device with real driver → PnP marketing name used",
 			devices: []PnPDevice{
 				{
 					Name:         "NVIDIA GeForce RTX 3080",
 					HardwareID:   []string{"PCI\\VEN_10DE&DEV_2208&SUBSYS_220810DE&REV_A1"},
 					InstallState: 0,
+					Service:      "nvlddmkm",
 				},
 			},
 			include:  includeAll,
-			expected: []string{"NVIDIA Corporation GA102 [GeForce RTX 3080 Ti]"},
+			expected: []string{"NVIDIA GeForce RTX 3080"},
 		},
 		{
 			name: "Empty PnP name and unresolvable PCI ID → skipped",
@@ -48,15 +49,17 @@ func TestResolveDeviceNames(t *testing.T) {
 					Name:         "Realtek PCIe GbE Family Controller",
 					HardwareID:   []string{"PCI\\VEN_10EC&DEV_8168"},
 					InstallState: 0,
+					Service:      "rt640x64",
 				},
 				{
 					Name:         "Realtek PCIe GbE Family Controller",
 					HardwareID:   []string{"PCI\\VEN_10EC&DEV_8168"},
 					InstallState: 0,
+					Service:      "rt640x64",
 				},
 			},
 			include:  includeAll,
-			expected: []string{"Realtek Semiconductor Co., Ltd. RTL8111/8168/8211/8411 PCI Express Gigabit Ethernet Controller", "Realtek Semiconductor Co., Ltd. RTL8111/8168/8211/8411 PCI Express Gigabit Ethernet Controller"},
+			expected: []string{"Realtek PCIe GbE Family Controller", "Realtek PCIe GbE Family Controller"},
 		},
 		{
 			name: "MS Basic Display Adapter with InstallState==0 (fallback driver) → PCI name used",
@@ -65,6 +68,7 @@ func TestResolveDeviceNames(t *testing.T) {
 					Name:         "Microsoft Basic Display Adapter",
 					HardwareID:   []string{"PCI\\VEN_10DE&DEV_2208&SUBSYS_220810DE&REV_A1"},
 					InstallState: 0,
+					Service:      "BasicDisplay",
 				},
 			},
 			include:  includeAll,
@@ -105,6 +109,58 @@ func TestResolveDeviceNames(t *testing.T) {
 			},
 			include:  includeAll,
 			expected: []string{"Unknown Display Device"},
+		},
+		{
+			name: "Real Intel iGPU driver → PnP marketing name used",
+			devices: []PnPDevice{
+				{
+					Name:         "Intel(R) Iris(R) Xe Graphics",
+					HardwareID:   []string{"PCI\\VEN_8086&DEV_46A6&SUBSYS_00000000&REV_0C"},
+					InstallState: 0,
+					Service:      "igfxn",
+				},
+			},
+			include:  includeAll,
+			expected: []string{"Intel(R) Iris(R) Xe Graphics"},
+		},
+		{
+			name: "Real NIC driver → PnP name used",
+			devices: []PnPDevice{
+				{
+					Name:         "Intel(R) Wi-Fi 6E AX211 160MHz",
+					HardwareID:   []string{"PCI\\VEN_8086&DEV_51F0&SUBSYS_00000000&REV_01"},
+					InstallState: 0,
+					Service:      "Netwtw14",
+				},
+			},
+			include:  includeAll,
+			expected: []string{"Intel(R) Wi-Fi 6E AX211 160MHz"},
+		},
+		{
+			name: "NIC with no driver (empty Service) → PCI DB name used",
+			devices: []PnPDevice{
+				{
+					Name:         "",
+					HardwareID:   []string{"PCI\\VEN_10DE&DEV_2208&SUBSYS_220810DE&REV_A1"},
+					InstallState: 1,
+					Service:      "",
+				},
+			},
+			include:  includeAll,
+			expected: []string{"NVIDIA Corporation GA102 [GeForce RTX 3080 Ti]"},
+		},
+		{
+			name: "BasicRender fallback → PCI DB name used",
+			devices: []PnPDevice{
+				{
+					Name:         "Microsoft Basic Display Adapter",
+					HardwareID:   []string{"PCI\\VEN_10DE&DEV_2208&SUBSYS_220810DE&REV_A1"},
+					InstallState: 0,
+					Service:      "BasicRender",
+				},
+			},
+			include:  includeAll,
+			expected: []string{"NVIDIA Corporation GA102 [GeForce RTX 3080 Ti]"},
 		},
 		{
 			name: "Device excluded by filter → not in output",
@@ -274,6 +330,75 @@ func TestIsNicDevice(t *testing.T) {
 			got := isNicDevice(tt.device)
 			if got != tt.want {
 				t.Errorf("isNicDevice() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestIsFallbackDriver tests detection of missing/generic drivers via Service.
+func TestIsFallbackDriver(t *testing.T) {
+	tests := []struct {
+		name   string
+		device PnPDevice
+		want   bool
+	}{
+		{
+			name:   "Empty Service → fallback (no driver bound)",
+			device: PnPDevice{Service: ""},
+			want:   true,
+		},
+		{
+			name:   "Display BasicDisplay → fallback",
+			device: PnPDevice{ClassGuid: GUID_DEVCLASS_DISPLAY, Service: "BasicDisplay"},
+			want:   true,
+		},
+		{
+			name:   "Display BasicRender → fallback",
+			device: PnPDevice{ClassGuid: GUID_DEVCLASS_DISPLAY, Service: "BasicRender"},
+			want:   true,
+		},
+		{
+			name:   "Display VgaSave → fallback",
+			device: PnPDevice{ClassGuid: GUID_DEVCLASS_DISPLAY, Service: "VgaSave"},
+			want:   true,
+		},
+		{
+			name:   "Display real driver (nvlddmkm) → not fallback",
+			device: PnPDevice{ClassGuid: GUID_DEVCLASS_DISPLAY, Service: "nvlddmkm"},
+			want:   false,
+		},
+		{
+			name:   "Display real driver (igfxn) → not fallback",
+			device: PnPDevice{ClassGuid: GUID_DEVCLASS_DISPLAY, Service: "igfxn"},
+			want:   false,
+		},
+		{
+			name:   "NIC real driver (Netwtw14) → not fallback",
+			device: PnPDevice{ClassGuid: GUID_DEVCLASS_NET, Service: "Netwtw14"},
+			want:   false,
+		},
+		{
+			name:   "NIC real driver lowercase → not fallback (case-insensitive)",
+			device: PnPDevice{ClassGuid: GUID_DEVCLASS_NET, Service: "netwtw14"},
+			want:   false,
+		},
+		{
+			name:   "Display fallback mixed case (basicDISPLAY) → fallback",
+			device: PnPDevice{ClassGuid: GUID_DEVCLASS_DISPLAY, Service: "basicDISPLAY"},
+			want:   true,
+		},
+		{
+			name:   "Empty struct → fallback",
+			device: PnPDevice{},
+			want:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isFallbackDriver(tt.device)
+			if got != tt.want {
+				t.Errorf("isFallbackDriver() = %v, want %v", got, tt.want)
 			}
 		})
 	}
