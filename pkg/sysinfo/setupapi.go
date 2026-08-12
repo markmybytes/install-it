@@ -20,6 +20,7 @@ type PnPDevice struct {
 	CompatibleID []string
 	Name         string
 	InstallState uint32 // 0 = CM_INSTALL_STATE_INSTALLED (driver fully installed)
+	Service      string // function driver service name (empty = no driver bound)
 }
 
 // isGpuDevice returns true if the PnP device is a GPU/display adapter.
@@ -79,6 +80,26 @@ func isBluetoothDevice(e PnPDevice) bool {
 	return e.ClassGuid == GUID_DEVCLASS_BLUETOOTH
 }
 
+var displayFallbackServices = map[string]bool{
+	"basicdisplay": true, // display.inf
+	"basicrender":  true, // basicrender.inf (WARP)
+	"vgasave":      true, // vga.sys (legacy)
+}
+
+// isFallbackDriver returns true when no real vendor driver is loaded.
+// Empty Service = no driver bound (NICs have no universal fallback).
+// Display devices additionally check against inbox fallback services.
+func isFallbackDriver(e PnPDevice) bool {
+	svc := strings.ToLower(e.Service)
+	if svc == "" {
+		return true
+	}
+	if isGpuDevice(e) {
+		return displayFallbackServices[svc]
+	}
+	return false
+}
+
 // isPhysicalDevice returns true if the PnP device represents real
 // physical hardware — i.e. its first hardware or compatible ID carries a
 // PCI\ or USB\ prefix. Software-emulated virtual adapters (Hyper-V
@@ -133,12 +154,12 @@ func getDeviceStringSlice(devInfo windows.DevInfo, data *windows.DevInfoData, pr
 // other WMI queries.
 func enumeratePnPDevices() ([]PnPDevice, error) {
 	devInfo, err := windows.SetupDiGetClassDevsEx(
-		nil,                        // classGUID — nil + DIGCF_ALLCLASSES = all classes
-		"",                         // enumerator — no filter
-		0,                          // hwndParent — no parent window
+		nil, // classGUID — nil + DIGCF_ALLCLASSES = all classes
+		"",  // enumerator — no filter
+		0,   // hwndParent — no parent window
 		windows.DIGCF_ALLCLASSES|windows.DIGCF_PRESENT,
 		windows.DevInfo(0), // deviceInfoSet — 0 = create new list
-		"", // machineName — local machine
+		"",                 // machineName — local machine
 	)
 	if err != nil {
 		return nil, err
@@ -170,6 +191,7 @@ func enumeratePnPDevices() ([]PnPDevice, error) {
 			CompatibleID: getDeviceStringSlice(devInfo, data, windows.SPDRP_COMPATIBLEIDS),
 			Name:         getDeviceString(devInfo, data, windows.SPDRP_DEVICEDESC),
 			InstallState: installState,
+			Service:      getDeviceString(devInfo, data, windows.SPDRP_SERVICE),
 		})
 		index++
 	}
