@@ -36,10 +36,13 @@ const selectedNetwork = ref<number>(0)
 const selectedDisplay = ref<number>(0)
 const selectedMiscellaneous = ref<number[]>([])
 
-onBeforeMount(() => {
-  utils.getHardware().then(v => (systemInfo.value.hw = v))
-  utils.getOSInfo().then(v => (systemInfo.value.os = v))
-})
+async function loadSystemInfo() {
+  Promise.all([utils.getHardware(), utils.getOSInfo()]).then(([hw, os]) => {
+    systemInfo.value = { hw, os }
+  })
+}
+
+onBeforeMount(loadSystemInfo)
 
 function selectMatchedOptions() {
   matcher
@@ -375,6 +378,8 @@ async function handleSubmit() {
     ref="statusModal"
     @completed="
       () => {
+        loadSystemInfo()
+
         const delay = Math.max(
           0,
           Math.floor(Number(settingStore.settings.success_action_delay) || 0)
