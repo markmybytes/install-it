@@ -290,6 +290,47 @@ function handleSubmit() {
           <hr class="border-gray-100 dark:border-gray-800" />
 
           <section>
+            <h3 class="mb-3 text-lg font-bold">{{ $t('settingCPUTemp') }}</h3>
+
+            <div class="flex flex-col gap-y-3">
+              <label class="flex w-fit cursor-pointer items-center select-none">
+                <UCheckbox
+                  v-model="settings.enable_cpu_temp"
+                  name="enable_cpu_temp"
+                  color="primary"
+                  class="me-2"
+                />
+
+                <span>{{ $t('settingEnableCPUTemp') }}</span>
+              </label>
+
+              <p class="text-xs text-gray-500">{{ $t('settingCPUTempRestartHint') }}</p>
+
+              <div
+                class="flex flex-col gap-y-1 transition-opacity duration-200"
+                :class="{ 'pointer-events-none opacity-40': !settings.enable_cpu_temp }"
+              >
+                <label>{{ $t('settingCPUTempRefreshInterval') }}</label>
+
+                <div class="flex items-center gap-x-2">
+                  <USelect
+                    v-model="settings.cpu_temp_refresh_interval"
+                    name="cpu_temp_refresh_interval"
+                    color="primary"
+                    class="w-24"
+                    :items="[1, 5, 10, 30, 60].map(v => ({ label: String(v), value: v }))"
+                    :disabled="!settings.enable_cpu_temp"
+                  />
+
+                  <span class="text-sm text-gray-500">{{ $t('labelSeconds') }}</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <hr class="border-gray-100 dark:border-gray-800" />
+
+          <section>
             <h3 class="mb-3 text-lg font-bold">{{ $t('settingInstallOptions') }}</h3>
 
             <div class="flex flex-col gap-y-3">

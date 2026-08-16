@@ -5,7 +5,8 @@ import * as utils from '@/utils'
 import * as executor from '@/wailsjs/go/execute/CommandExecutor'
 import * as matcher from '@/wailsjs/go/matching/Matcher'
 import { sysinfo } from '@/wailsjs/go/models'
-import { computed, onBeforeMount, ref, useTemplateRef } from 'vue'
+import * as sysinfoApi from '@/wailsjs/go/sysinfo/SysInfo'
+import { computed, onBeforeMount, onBeforeUnmount, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -32,6 +33,9 @@ const systemInfo = ref<{ hw: sysinfo.ResolvedHardware | null; os: sysinfo.OSInfo
   os: null
 })
 
+const cpuTemp = ref<number | null>(null)
+let stopPolling: (() => void) | null = null
+
 const selectedNetwork = ref<number>(0)
 const selectedDisplay = ref<number>(0)
 const selectedMiscellaneous = ref<number[]>([])
@@ -42,7 +46,28 @@ async function loadSystemInfo() {
   })
 }
 
-onBeforeMount(loadSystemInfo)
+onBeforeMount(() => {
+  loadSystemInfo()
+
+  if (settingStore.settings.enable_cpu_temp) {
+    let timer: ReturnType<typeof setTimeout>
+    const tick = () =>
+      sysinfoApi
+        .CPUTemperature()
+        .then(t => {
+          cpuTemp.value = t >= 0 ? Math.round(t) : null
+        })
+        .catch(() => {
+          cpuTemp.value = null
+        })
+        .finally(() => {
+          const secs = Math.max(1, Number(settingStore.settings.cpu_temp_refresh_interval) || 5)
+          timer = setTimeout(tick, secs * 1000)
+        })
+    tick()
+    stopPolling = () => clearTimeout(timer)
+  }
+})
 
 function selectMatchedOptions() {
   matcher
@@ -164,6 +189,10 @@ async function handleSubmit() {
 
   statusModal.value?.show(settingStore.settings.parallel_install, commands)
 }
+
+onBeforeUnmount(() => {
+  stopPolling?.()
+})
 </script>
 
 <template>
@@ -171,7 +200,15 @@ async function handleSubmit() {
     <div class="flex flex-1 flex-col gap-y-1 overflow-y-auto rounded-sm border p-1">
       <template v-if="systemInfo.hw !== null && systemInfo.os !== null">
         <div v-for="[part, names] in Object.entries(systemInfo.hw)" :key="part">
-          <h2 class="text-sm font-bold">{{ $t(hwKey(part)) }}</h2>
+          <h2 class="text-sm font-bold">
+            {{ $t(hwKey(part)) }}
+            <span
+              v-if="part === 'cpu' && cpuTemp !== null"
+              class="ms-1 rounded bg-apple-green-100 px-1.5 text-xs font-medium text-apple-green-700"
+            >
+              {{ cpuTemp }}°C
+            </span>
+          </h2>
 
           <p
             v-for="(name, i) in names.filter(

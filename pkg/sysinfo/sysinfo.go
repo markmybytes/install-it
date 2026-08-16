@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"golang.org/x/sys/windows/registry"
+
+	"install-it/pkg/cputemp"
 )
 
 // ResolvedHardware holds all resolved hardware names in a single struct
@@ -128,6 +130,25 @@ func (i SysInfo) ResolvedHardware() (ResolvedHardware, error) {
 // OSInfo returns structured OS data, or nil if the WMI query finds no OS.
 func (i SysInfo) OSInfo() (*OSInfo, error) {
 	return resolveOS(), nil
+}
+
+// CPUTemperature returns the current CPU package temperature in °C via PawnIO,
+// or -1 if unavailable. Lightweight: IOCTL read only, no WMI queries.
+func (i SysInfo) CPUTemperature() (float64, error) {
+	if !cputemp.IsAvailable() {
+		return -1, nil
+	}
+	temps, err := cputemp.GetCPUTemperatures()
+	if err != nil || len(temps) == 0 {
+		return -1, err
+	}
+	var max float64
+	for _, t := range temps {
+		if t.Value > max {
+			max = t.Value
+		}
+	}
+	return max, nil
 }
 
 // resolveOS returns structured OS data. Returns nil when no Caption is

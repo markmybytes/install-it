@@ -78,6 +78,23 @@ jobs:
           mkdir internals\data
           curl -sL -o internals\data\pci.ids.gz https://pci-ids.ucw.cz/v2.2/pci.ids.gz
 
+      - name: Download PawnIO driver and modules
+        shell: pwsh
+        run: |
+          $expected = "1f519a22e47187f70a1379a48ca604981c4fcf694f4e65b734aaa74a9fba3032"
+          curl -sL -o "build\bin\internals\data\PawnIO_setup.exe" "https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe"
+          $actual = (Get-FileHash "build\bin\internals\data\PawnIO_setup.exe" -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { throw "PawnIO_setup.exe SHA256 mismatch: expected $expected, got $actual" }
+          curl -sL -o "build\bin\internals\data\pawnio_modules.zip" "https://github.com/namazso/PawnIO.Modules/releases/download/0.2.10/release_0_2_10.zip"
+          $expectedModules = "971c7c974c538b62ac020e0442fa99d0423417bfb496dfe9a4a43ccc0abc0e63"
+          $actualModules = (Get-FileHash "build\bin\internals\data\pawnio_modules.zip" -Algorithm SHA256).Hash.ToLower()
+          if ($actualModules -ne $expectedModules) { throw "PawnIO modules SHA256 mismatch: expected $expectedModules, got $actualModules" }
+          Expand-Archive -Path "build\bin\internals\data\pawnio_modules.zip" -DestinationPath "build\bin\internals\data\pawnio_modules" -Force
+          Move-Item "build\bin\internals\data\pawnio_modules\IntelMSR.bin" "build\bin\internals\data\IntelMSR.bin"
+          Move-Item "build\bin\internals\data\pawnio_modules\RyzenSMU.bin" "build\bin\internals\data\RyzenSMU.bin"
+          Remove-Item "build\bin\internals\data\pawnio_modules.zip"
+          Remove-Item -Recurse "build\bin\internals\data\pawnio_modules"
+
       - name: Bundle binary and WebView2 files into ZIP
         run: |
           cd build\bin

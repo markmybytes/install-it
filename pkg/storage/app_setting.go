@@ -7,19 +7,21 @@ import (
 )
 
 type AppSetting struct {
-	CreatePartition    bool          `json:"create_partition"`
-	SetPassword        bool          `json:"set_password"`
-	Password           string        `json:"password"`
-	ParallelInstall    bool          `json:"parallel_install"`
-	SuccessAction      SuccessAction `json:"success_action"`
-	SuccessActionDelay int           `json:"success_action_delay"`
-	FilterMiniportNic  bool          `json:"filter_miniport_nic"`
-	FilterMicrosoftNic bool          `json:"filter_microsoft_nic"`
-	Language           string        `json:"language"`
-	DriverDownloadUrl  string        `json:"driver_download_url"`
-	AutoCheckUpdate    bool          `json:"auto_check_update"`
-	HideNotFound       bool          `json:"hide_not_found"`
-	AllowPreRelease    bool          `json:"allow_pre_release"`
+	CreatePartition        bool          `json:"create_partition"`
+	SetPassword            bool          `json:"set_password"`
+	Password               string        `json:"password"`
+	ParallelInstall        bool          `json:"parallel_install"`
+	SuccessAction          SuccessAction `json:"success_action"`
+	SuccessActionDelay     int           `json:"success_action_delay"`
+	FilterMiniportNic      bool          `json:"filter_miniport_nic"`
+	FilterMicrosoftNic     bool          `json:"filter_microsoft_nic"`
+	Language               string        `json:"language"`
+	DriverDownloadUrl      string        `json:"driver_download_url"`
+	AutoCheckUpdate        bool          `json:"auto_check_update"`
+	HideNotFound           bool          `json:"hide_not_found"`
+	AllowPreRelease        bool          `json:"allow_pre_release"`
+	EnableCPUTemp          bool          `json:"enable_cpu_temp"`
+	CPUTempRefreshInterval int           `json:"cpu_temp_refresh_interval"`
 }
 
 type SuccessAction string
@@ -41,13 +43,15 @@ func (s *AppSettingStorage) All() (AppSetting, error) {
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			s.setting = AppSetting{
-				AutoCheckUpdate:    true,
-				FilterMiniportNic:  true,
-				FilterMicrosoftNic: true,
-				Language:           "en",
-				ParallelInstall:    true,
-				SuccessAction:      Nothing,
-				SuccessActionDelay: 5,
+				AutoCheckUpdate:        true,
+				FilterMiniportNic:      true,
+				FilterMicrosoftNic:     true,
+				Language:               "en",
+				ParallelInstall:        true,
+				SuccessAction:          Nothing,
+				SuccessActionDelay:     5,
+				EnableCPUTemp:          false,
+				CPUTempRefreshInterval: 5,
 			}
 			return s.setting, s.write()
 		}
@@ -56,6 +60,10 @@ func (s *AppSettingStorage) All() (AppSetting, error) {
 
 	if err := json.Unmarshal(bytes, &s.setting); err != nil {
 		return AppSetting{}, err
+	}
+	// Backfill: legacy setting.json predates cpu_temp_refresh_interval.
+	if s.setting.CPUTempRefreshInterval <= 0 {
+		s.setting.CPUTempRefreshInterval = 5
 	}
 	return s.setting, nil
 }

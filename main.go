@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"install-it/pkg/cputemp"
 	"install-it/pkg/execute"
 	"install-it/pkg/matching"
 	"install-it/pkg/porter"
@@ -40,6 +41,7 @@ var (
 	groupStorage   *storage.DriverGroupStorage
 	ruleSetStorage *storage.RuleSetStorage
 	matcher        *matching.Matcher
+	appSettings    *storage.AppSettingStorage
 )
 
 func init() {
@@ -89,6 +91,7 @@ func main() {
 	groupStorage = storage.NewDriverGroupStorage(db)
 	ruleSetStorage = storage.NewRuleSetStorage(db)
 	matcher = matching.NewMatcher(ruleSetStorage, matching.WMIHardwareQuerier{})
+	appSettings = &storage.AppSettingStorage{Path: filepath.Join(dirConf, "setting.json")}
 
 	// Porter instance shared between Bind and OnStartup
 	porterInstance := &porter.Porter{
@@ -134,12 +137,16 @@ func main() {
 
 			app.SetContext(ctx)
 			mgt.SetContext(ctx)
+
+			if s, err := appSettings.All(); err == nil && s.EnableCPUTemp {
+				go cputemp.Init(dirRoot)
+			}
 		},
 		Bind: []interface{}{
 			app,
 			mgt,
 			updater,
-			&storage.AppSettingStorage{Path: filepath.Join(dirConf, "setting.json")},
+			appSettings,
 			groupStorage,
 			ruleSetStorage,
 			matcher,
