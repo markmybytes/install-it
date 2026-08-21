@@ -1,3 +1,10 @@
+// To download PawnIO assets for local development:
+//   go generate ./pkg/cputemp/
+//
+//go:generate curl -sL -o data/PawnIO_setup.exe https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe
+//go:generate curl -sL -o data/pawnio_modules.zip https://github.com/namazso/PawnIO.Modules/releases/download/0.2.10/release_0_2_10.zip
+//go:generate powershell -NoProfile -Command "Expand-Archive -Path data/pawnio_modules.zip -DestinationPath data/pawnio_modules -Force; Move-Item -Force data/pawnio_modules/IntelMSR.bin,data/pawnio_modules/RyzenSMU.bin data/; Remove-Item -Recurse -Force data/pawnio_modules,data/pawnio_modules.zip"
+
 package cputemp
 
 import (
@@ -6,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"golang.org/x/sys/windows"
@@ -28,9 +36,10 @@ const (
 // On any failure the error is logged to stderr and returned; ready stays
 // false and IsAvailable() reports false, so the app degrades silently.
 func Init(exeDir string) error {
-	installer := filepath.Join(exeDir, "internals", "data", "PawnIO_setup.exe")
-	intelMSR := filepath.Join(exeDir, "internals", "data", "IntelMSR.bin")
-	ryzenSMU := filepath.Join(exeDir, "internals", "data", "RyzenSMU.bin")
+	installer, intelMSR, ryzenSMU, err := resolveAssets(exeDir)
+	if err != nil {
+		return fail(err)
+	}
 
 	if err := ensureInstalled(installer); err != nil {
 		return fail(err)
@@ -77,6 +86,28 @@ func Init(exeDir string) error {
 func fail(err error) error {
 	fmt.Fprintln(os.Stderr, "install-it: CPU temp unavailable:", err)
 	return err
+}
+
+// resolveAssets locates PawnIO_setup.exe, IntelMSR.bin, RyzenSMU.bin.
+// Probes exeDir/internals/data first (CI / wails build), then the source
+// directory's data/ subdir (go generate / wails dev). Mirrors the dual-path
+// lookup in pkg/sysinfo/pciids.go.
+func resolveAssets(exeDir string) (installer, intelMSR, ryzenSMU string, err error) {
+	var dirs []string
+	dirs = append(dirs, filepath.Join(exeDir, "internals", "data"))
+	if _, src, _, ok := runtime.Caller(0); ok {
+		dirs = append(dirs, filepath.Join(filepath.Dir(src), "data"))
+	}
+
+	for _, dir := range dirs {
+		installer = filepath.Join(dir, "PawnIO_setup.exe")
+		intelMSR = filepath.Join(dir, "IntelMSR.bin")
+		ryzenSMU = filepath.Join(dir, "RyzenSMU.bin")
+		if _, err = os.Stat(installer); err == nil {
+			return installer, intelMSR, ryzenSMU, nil
+		}
+	}
+	return "", "", "", fmt.Errorf("PawnIO assets not found in %v — run `go generate ./pkg/cputemp/`", dirs)
 }
 
 // ensureInstalled runs the PawnIO installer unless the registry uninstall
