@@ -1,7 +1,9 @@
 // To download PawnIO assets for local development:
 //   go generate ./pkg/cputemp/
 //
-//go:generate powershell -NoProfile -Command "New-Item -ItemType Directory -Force data | Out-Null; Invoke-WebRequest -UseBasicParsing -OutFile data/PawnIO_setup.exe https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe; Invoke-WebRequest -UseBasicParsing -OutFile data/pawnio_modules.zip https://github.com/namazso/PawnIO.Modules/releases/download/0.2.10/release_0_2_10.zip; Expand-Archive -Path data/pawnio_modules.zip -DestinationPath data/pawnio_modules -Force; Move-Item -Force data/pawnio_modules/IntelMSR.bin,data/pawnio_modules/RyzenSMU.bin data/; Remove-Item -Recurse -Force data/pawnio_modules,data/pawnio_modules.zip"
+//go:generate curl -fsSL -o data/PawnIO_setup.exe https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe
+//go:generate curl -fsSL -o data/pawnio_modules.zip https://github.com/namazso/PawnIO.Modules/releases/download/0.2.10/release_0_2_10.zip
+//go:generate powershell -NoProfile -Command "Expand-Archive data/pawnio_modules.zip data/.pawnio -Force; Move-Item -Force data/.pawnio/IntelMSR.bin,data/.pawnio/RyzenSMU.bin data/; Remove-Item -Recurse data/.pawnio,data/pawnio_modules.zip"
 
 package cputemp
 
