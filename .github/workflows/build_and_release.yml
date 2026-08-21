@@ -78,6 +78,17 @@ jobs:
           mkdir internals\data
           curl -sL -o internals\data\pci.ids.gz https://pci-ids.ucw.cz/v2.2/pci.ids.gz
 
+      - name: Download PawnIO driver and modules
+        shell: pwsh
+        run: |
+          curl -sL -o "build\bin\internals\data\PawnIO_setup.exe" "https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe"
+          curl -sL -o "build\bin\internals\data\pawnio_modules.zip" "https://github.com/namazso/PawnIO.Modules/releases/download/0.2.10/release_0_2_10.zip"
+          Expand-Archive -Path "build\bin\internals\data\pawnio_modules.zip" -DestinationPath "build\bin\internals\data\pawnio_modules" -Force
+          Move-Item "build\bin\internals\data\pawnio_modules\IntelMSR.bin" "build\bin\internals\data\IntelMSR.bin"
+          Move-Item "build\bin\internals\data\pawnio_modules\RyzenSMU.bin" "build\bin\internals\data\RyzenSMU.bin"
+          Remove-Item "build\bin\internals\data\pawnio_modules.zip"
+          Remove-Item -Recurse "build\bin\internals\data\pawnio_modules"
+
       - name: Bundle binary and WebView2 files into ZIP
         run: |
           cd build\bin

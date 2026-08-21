@@ -442,10 +442,13 @@ Add after "Download PCI ID database" step:
   shell: pwsh
   run: |
     $expected = "1f519a22e47187f70a1379a48ca604981c4fcf694f4e65b734aaa74a9fba3032"
-    Invoke-WebRequest -Uri "https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe" -OutFile "build\bin\internals\data\PawnIO_setup.exe" -UseBasicParsing
+    curl -sL -o "build\bin\internals\data\PawnIO_setup.exe" "https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe"
     $actual = (Get-FileHash "build\bin\internals\data\PawnIO_setup.exe" -Algorithm SHA256).Hash.ToLower()
     if ($actual -ne $expected) { throw "PawnIO_setup.exe SHA256 mismatch: expected $expected, got $actual" }
-    Invoke-WebRequest -Uri "https://github.com/namazso/PawnIO.Modules/releases/download/0.2.9/release_0_2_9.zip" -OutFile "build\bin\internals\data\pawnio_modules.zip" -UseBasicParsing
+    curl -sL -o "build\bin\internals\data\pawnio_modules.zip" "https://github.com/namazso/PawnIO.Modules/releases/download/0.2.10/release_0_2_10.zip"
+    $expectedModules = "971c7c974c538b62ac020e0442fa99d0423417bfb496dfe9a4a43ccc0abc0e63"
+    $actualModules = (Get-FileHash "build\bin\internals\data\pawnio_modules.zip" -Algorithm SHA256).Hash.ToLower()
+    if ($actualModules -ne $expectedModules) { throw "PawnIO modules SHA256 mismatch: expected $expectedModules, got $actualModules" }
     Expand-Archive -Path "build\bin\internals\data\pawnio_modules.zip" -DestinationPath "build\bin\internals\data\pawnio_modules" -Force
     Move-Item "build\bin\internals\data\pawnio_modules\IntelMSR.bin" "build\bin\internals\data\IntelMSR.bin"
     Move-Item "build\bin\internals\data\pawnio_modules\RyzenSMU.bin" "build\bin\internals\data\RyzenSMU.bin"
@@ -501,8 +504,9 @@ ZIP step already includes `internals\data` — no change needed.
 - PawnIO_setup.exe: `https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe`
   - SHA256: `1f519a22e47187f70a1379a48ca604981c4fcf694f4e65b734aaa74a9fba3032`
   - Size: 3,410,960 bytes
-- PawnIO Modules: `https://github.com/namazso/PawnIO.Modules/releases/download/0.2.9/release_0_2_9.zip`
-  - Contains: `IntelMSR.bin` (5,292 bytes), `RyzenSMU.bin` (39,652 bytes), and other modules
+- PawnIO Modules: `https://github.com/namazso/PawnIO.Modules/releases/download/0.2.10/release_0_2_10.zip`
+  - SHA256: `971c7c974c538b62ac020e0442fa99d0423417bfb496dfe9a4a43ccc0abc0e63`
+  - Contains: `IntelMSR.bin` (5,324 bytes), `RyzenSMU.bin` (38,996 bytes), and other modules
 
 ## Known Limitations
 

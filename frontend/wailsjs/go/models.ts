@@ -163,6 +163,8 @@ export namespace storage {
 	    auto_check_update: boolean;
 	    hide_not_found: boolean;
 	    allow_pre_release: boolean;
+	    enable_cpu_temp: boolean;
+	    cpu_temp_refresh_interval: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppSetting(source);
@@ -183,6 +185,8 @@ export namespace storage {
 	        this.auto_check_update = source["auto_check_update"];
 	        this.hide_not_found = source["hide_not_found"];
 	        this.allow_pre_release = source["allow_pre_release"];
+	        this.enable_cpu_temp = source["enable_cpu_temp"];
+	        this.cpu_temp_refresh_interval = source["cpu_temp_refresh_interval"];
 	    }
 	}
 	export class Driver {
