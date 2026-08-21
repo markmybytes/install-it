@@ -40,7 +40,7 @@ const selectedNetwork = ref<number>(0)
 const selectedDisplay = ref<number>(0)
 const selectedMiscellaneous = ref<number[]>([])
 
-async function loadSystemInfo() {
+function loadSystemInfo() {
   Promise.all([utils.getHardware(), utils.getOSInfo()]).then(([hw, os]) => {
     systemInfo.value = { hw, os }
   })
