@@ -34,7 +34,8 @@ const systemInfo = ref<{ hw: sysinfo.ResolvedHardware | null; os: sysinfo.OSInfo
 })
 
 const cpuTemp = ref<number | null>(null)
-let stopPolling: (() => void) | null = null
+let timer: ReturnType<typeof setTimeout> | undefined
+let pollingStopped = false
 
 const selectedNetwork = ref<number>(0)
 const selectedDisplay = ref<number>(0)
@@ -50,7 +51,7 @@ onBeforeMount(() => {
   loadSystemInfo()
 
   if (settingStore.settings.enable_cpu_temp) {
-    let timer: ReturnType<typeof setTimeout>
+    pollingStopped = false
     const tick = () =>
       sysinfoApi
         .CPUTemperature()
@@ -61,11 +62,11 @@ onBeforeMount(() => {
           cpuTemp.value = null
         })
         .finally(() => {
+          if (pollingStopped) return
           const secs = Math.max(1, Number(settingStore.settings.cpu_temp_refresh_interval) || 5)
           timer = setTimeout(tick, secs * 1000)
         })
     tick()
-    stopPolling = () => clearTimeout(timer)
   }
 })
 
@@ -191,7 +192,8 @@ async function handleSubmit() {
 }
 
 onBeforeUnmount(() => {
-  stopPolling?.()
+  pollingStopped = true
+  if (timer) clearTimeout(timer)
 })
 </script>
 
