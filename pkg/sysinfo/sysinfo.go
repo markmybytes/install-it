@@ -132,15 +132,20 @@ func (i SysInfo) OSInfo() (*OSInfo, error) {
 	return resolveOS(), nil
 }
 
-// CPUTemperature returns the current CPU package temperature in °C via PawnIO,
-// or -1 if unavailable. Lightweight: IOCTL read only, no WMI queries.
+// CPUTemperature returns the current CPU package temperature in °C via PawnIO.
+// Returns an error (not a sentinel value) when unavailable.
+//
+// IOCTL read only, no WMI queries.
 func (i SysInfo) CPUTemperature() (float64, error) {
 	if !cputemp.IsAvailable() {
-		return -1, nil
+		return 0, fmt.Errorf("cpu temperature unavailable")
 	}
 	temps, err := cputemp.GetCPUTemperatures()
-	if err != nil || len(temps) == 0 {
-		return -1, err
+	if err != nil {
+		return 0, err
+	}
+	if len(temps) == 0 {
+		return 0, fmt.Errorf("no cpu temperature readings")
 	}
 	var max float64
 	for _, t := range temps {

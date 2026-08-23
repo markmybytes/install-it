@@ -54,7 +54,7 @@ onBeforeMount(() => {
       sysinfoApi
         .CPUTemperature()
         .then(t => {
-          cpuTemp.value = t >= 0 ? Math.round(t) : null
+          cpuTemp.value = Math.round(t)
         })
         .catch(() => {
           cpuTemp.value = null
