@@ -204,12 +204,20 @@ onBeforeUnmount(() => {
         <div v-for="[part, names] in Object.entries(systemInfo.hw)" :key="part">
           <h2 class="text-sm font-bold">
             {{ $t(hwKey(part)) }}
-            <span
+            <UBadge
               v-if="part === 'cpu' && cpuTemp !== null"
-              class="ms-1 rounded bg-apple-green-100 px-1.5 text-xs font-medium text-apple-green-700"
+              size="sm"
+              class="ms-1 rounded px-1.5 py-0 text-xs font-medium"
+              :class="
+                cpuTemp < 45
+                  ? 'bg-apple-green-100 text-apple-green-700'
+                  : cpuTemp >= 85
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-yellow-100 text-yellow-700'
+              "
             >
               {{ cpuTemp }}°C
-            </span>
+            </UBadge>
           </h2>
 
           <p
