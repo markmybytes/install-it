@@ -1,22 +1,29 @@
 # Backend Message i18n Unification — Handoff
 
-> Handoff document capturing the full context, decisions, architecture, and migration plan for unifying how Go backend messages/errors reach the Vue frontend for translation. The CPU temperature feature follow-ups (#48, #49, #50) surfaced the problem; this doc is the reference for the unification work the author plans to do later.
+> Reference document for unifying how Go backend messages/errors reach the Vue frontend for translation. Surfaced by the CPU temperature follow-ups (#48, #49, #50); this is the canonical plan for the unification work.
 
 ---
 
 ## 1. Problem
 
-The app has **21 backend→UI message touchpoints** across the Go↔Vue boundary, handled with three inconsistent ad-hoc patterns:
+Backend→UI error handling is inconsistent across ~21 frontend touchpoints and leaks raw Go error text across the Wails bridge at scale.
+
+**Frontend patterns (all wrong in different ways):**
 
 | Pattern | Where | Problem |
 |---|---|---|
-| RAW `err.toString()` / `reason.toString()` toast | DriverFormComponent, MatchRuleFormComponent, app-info.vue, UpdateModal.vue, porter Abort | English leaks to UI; no localization |
-| Localized toast, Go error dropped (`catch(() => t('toastX'))`) | drivers/index, match-rules/index, App.vue, settings.vue, index.vue (matcher) | Loses the actual error; one generic key for all failures |
-| **English substring-matching** (fragile, English-coupled) | ProgressModal.toastErrMsg (16-line `err.includes()` chain), CommandStatusModal, TaskStatus | Breaks when backend text changes; not localizable |
+| RAW `err.toString()` toast | DriverFormComponent, MatchRuleFormComponent, app-info.vue, UpdateModal.vue, porter Abort | English leaks to UI |
+| Localized toast, error dropped (`catch(() => t('toastX'))`) | drivers/index, match-rules/index, App.vue, settings.vue, index.vue matcher | Loses actual failure; one generic key for all causes |
+| English substring-matching | ProgressModal.toastErrMsg (16-line `err.includes()` chain), CommandStatusModal, TaskStatus | Breaks when backend text changes; not localizable |
 
-There is no global helper. The worst offender is `ProgressModal.vue:146-162` (`toastErrMsg`) which substring-matches Go error strings against English phrases (`"context canceled"`, `"cannot find the path"`, `"zip: not a valid zip file"`, …) to pick an i18n key, falling back to the raw error.
+**Backend audit (verified against source):** roughly **75 sites** return error text across the bridge verbatim through bound methods:
 
-**Trigger:** CPU temperature follow-ups. `CPUTemperature()` returned `-1` as a failure sentinel (#50 fixed this to return an `error`), and the question of how to surface that error to the user (gray `-- °C` badge + toast) revealed the broader, app-wide inconsistency. The author plans to unify.
+| Class | Count | Examples |
+|---|---|---|
+| Deliberate interpolation | ~25 | `action.go:94` `"cannot open source file %s"`, `update.go:238` `"zip slip detected: %s"`, `porter.go:105` `"unsupported archive format version %d"` |
+| Raw inner-error leaks | ~50 | storage CRUD returns raw **gorm SQL text** on every method; updater returns raw http/os/json errors; App dialogs, Matcher WMI, cputemp MSR reads return untouched OS errors |
+
+Nobody designed the leak class — those are accidents crossing the bridge. All of it is English-coupled and unlocalizable.
 
 ---
 
@@ -24,13 +31,12 @@ There is no global helper. The worst offender is `ProgressModal.vue:146-162` (`t
 
 | # | Decision | Rationale |
 |---|---|---|
-| 1 | **Backend emits a stable code; frontend owns localized text** | i18n lives on the frontend; backend must not format user-facing strings. |
-| 2 | **The code IS the vue-i18n key** | Zero mapping tables; adding a new error forces both the code and the i18n entry (completeness). |
-| 3 | **Prefix = severity** | `err*` → error toast (red), `warn*` → warning (amber), `msg*` → info, `toast*` → general. Drives `useBackendError` toast color and matches STYLE.md prefixes. |
-| 4 | **Dynamic values via JSON-encoded params** in `.Error()` when present | Wails serializes errors as strings (`.Error()`); embed `{c,p}` JSON for parameterized messages; static errors stay as a plain code (no JSON overhead). |
-| 5 | **Bound methods convert internal errors to code errors at the boundary** | Internal `fmt.Errorf("ctx: %w", inner)` is fine for dev logs; the Wails-bound return strips to the code so only the code crosses the bridge. |
-
-Confirmed by the author that returning i18n keys (not English text) from the backend is the intended direction; this doc captures the canonical shape.
+| 1 | **Backend emits a stable code; frontend owns localized text** | i18n lives on the frontend. |
+| 2 | **The code IS the vue-i18n key** | Zero mapping tables; adding an error forces both the code and the i18n entry. |
+| 3 | **Prefix = severity** | `err*` → red toast, `warn*` → amber, `msg*` → info, `toast*` → general. Matches STYLE.md key prefixes. |
+| 4 | **Structured errors cross the bridge natively via Wails `ErrorFormatter`** | Verified in pinned Wails v2.12.0: the formatter's return value is JSON-marshaled and reaches the JS promise rejection as a real object (`v2/internal/frontend/dispatcher/calls.go` → `reject(message.error)`). No string smuggling needed. |
+| 5 | **Minimal immutable error type; no error chaining** | The app has **no logging** at this stage — wrapped inner chains would have zero consumers. `.Error()` returns the bare code for tests/devtools; structure travels via `MarshalJSON`. |
+| 6 | **Bound methods are conversion points** | Internal helpers may build `*errcode.Error` freely; every bound method must return one (or fall back to a raw string during migration). Never wrap codes with `%w` in bound returns. |
 
 ---
 
@@ -38,82 +44,86 @@ Confirmed by the author that returning i18n keys (not English text) from the bac
 
 ### 3.1 Backend: `pkg/errcode`
 
-New package:
-
 ```go
 // pkg/errcode/errcode.go
 package errcode
 
 import "encoding/json"
 
-// Error is a machine-readable error whose .Error() returns a stable code
-// string that doubles as a frontend i18n key.
-//
-// The code prefix (err / warn / msg / toast) signals severity to the frontend.
-// Params carries vue-i18n interpolation values when present. The inner Err
-// is wrapped for Go-side dev logs only — it never crosses the Wails bridge
-// (only .Error() does).
+// Error carries a stable code (doubles as vue-i18n key) plus optional i18n
+// interpolation params. Immutable: unexported fields, build via New/Newf only.
 type Error struct {
-    Code   string
-    Params map[string]any
-    Err    error
+	code   string
+	params map[string]any
 }
 
-func (e *Error) Error() string {
-    if len(e.Params) == 0 {
-        return e.Code
-    }
-    b, _ := json.Marshal(struct {
-        C string         `json:"c"`
-        P map[string]any `json:"p"`
-    }{e.Code, e.Params})
-    return string(b)
+func New(code string) *Error { return &Error{code: code} }
+
+func Newf(code string, params map[string]any) *Error {
+	p := make(map[string]any, len(params))
+	for k, v := range params {
+		p[k] = v
+	}
+	return &Error{code: code, params: p}
 }
 
-func (e *Error) Unwrap() error { return e.Err }
+// Error returns the bare code — readable in tests and devtools.
+// Structured data crosses the bridge via MarshalJSON + ErrorFormatter, not here.
+func (e *Error) Error() string { return e.code }
 
-func New(code string) *Error                      { return &Error{Code: code} }
-func Newf(code string, params map[string]any) *Error { return &Error{Code: code, Params: params} }
-func Wrap(code string, inner error) *Error       { return &Error{Code: code, Err: inner} }
+// Is enables errors.Is across fmt.Errorf wrapping.
+func (e *Error) Is(target error) bool {
+	t, ok := target.(*Error)
+	return ok && t.code == e.code
+}
+
+func (e *Error) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Code   string         `json:"code"`
+		Params map[string]any `json:"params,omitempty"`
+	}{e.code, e.params})
+}
 ```
 
-**Boundary discipline (must document in package comment):** Wails-bound methods MUST return `*errcode.Error` as the top-level error. Internal helpers may wrap freely for logging, but the bound return converts to a clean code:
+Deliberately absent: `Err` field, `Unwrap`, `Wrap`. No logger exists to print chains; reintroduce only if logging arrives.
+
+Sentinel codes are **colocated with the emitting package**, as exported immutable values:
 
 ```go
-// Internal — fine to wrap
-func openPawnIO() error {
-    return fmt.Errorf("open PawnIO device: %w", windowsErr)
-}
+// pkg/porter/errors.go
+var (
+    ErrExportFailed = errcode.New("errExportFailed")
+    ErrImportFailed = errcode.New("errImportFailed")
+)
 
-// Bound — strips to code
-func (i SysInfo) CPUTemperature() (float64, error) {
-    if err := openPawnIO(); err != nil {
-        log.Printf("cpu temp init: %v", err)   // dev log keeps the chain
-        return 0, errCPUTempUnavailable          // bridge gets just the code
+// Parametrized sites construct inline:
+return errcode.Newf("errImportFileOpen", map[string]any{"path": filePath})
+```
+
+Per-package files: `pkg/sysinfo/errors.go`, `pkg/porter/errors.go`, `pkg/execute/errors.go`, `pkg/storage/errors.go`, `pkg/update/errors.go`, etc.
+
+### 3.2 Wails wiring (one global config point)
+
+```go
+// main.go — covers ALL bound structs
+ErrorFormatter: func(err error) any {
+    var ec *errcode.Error
+    if errors.As(err, &ec) {
+        return ec // marshaled to {"code": "...", "params": {...}}
     }
-}
+    return err.Error() // unmigrated/raw errors fall back to plain string
+},
 ```
 
-**Sentinel codes are colocated with the emitting package** (not centralized in one file):
-
-- `pkg/sysinfo/errors.go` — CPU temp codes
-- `pkg/porter/errors.go` — import/export codes
-- `pkg/execute/errors.go` — command executor codes
-- `pkg/storage/errors.go` — CRUD codes
-- `pkg/update/errors.go` — updater codes
-- etc.
-
-### 3.2 Contract
+### 3.3 Contract
 
 ```
-Go:  errcode.New("warnCPUTempUnavailable")
-        ↓ .Error() = "warnCPUTempUnavailable"
-Wails bridge: string "warnCPUTempUnavailable"
+Go:    errcode.New("warnCPUTempUnavailable")
+        ↓ ErrorFormatter
+JS rejection: { code: "warnCPUTempUnavailable", params?: {...} }
         ↓
-Vue: t("warnCPUTempUnavailable") → localized message
+Vue:   t(code, params) → localized message; prefix drives toast color
 ```
-
-No mapping tables. The code string is the key. Prefix drives severity:
 
 | Prefix | Toast color | UI treatment |
 |---|---|---|
@@ -122,9 +132,9 @@ No mapping tables. The code string is the key. Prefix drives severity:
 | `msg*` | `info` | Informational |
 | `toast*` | `error` or `info` | General toast |
 
-i18n keys follow STYLE.md (flat camelCase, `err*`/`warn*`/`toast*` prefixes).
+Non-code errors arrive as plain strings during migration; the composable handles both shapes.
 
-### 3.3 Frontend: `useBackendError` composable
+### 3.4 Frontend: `useBackendError` composable
 
 ```ts
 // frontend/src/composables/useBackendError.ts
@@ -136,16 +146,10 @@ export function useBackendError() {
   const toast = useToast()
 
   function codeOf(err: unknown): { code: string; params?: Record<string, any> } {
-    const s = String(err)
-    if (s.startsWith('{')) {
-      try {
-        const { c, p } = JSON.parse(s)
-        return { code: c, params: p }
-      } catch {
-        /* fallthrough */
-      }
+    if (err && typeof err === 'object' && 'code' in err) {
+      return err as { code: string; params?: Record<string, any> }
     }
-    return { code: s }
+    return { code: String(err) } // raw fallback during migration
   }
 
   function message(err: unknown): string {
@@ -165,36 +169,43 @@ export function useBackendError() {
 }
 ```
 
+No JSON parsing, no English substring matching, ever.
+
+### 3.5 Version pin caveat + contract test
+
+Object pass-through works on **v2.12.0** (pinned in `go.mod`). Wails master (post-PR #5244) wraps rejections in `new Error(...)`, which would stringify structured payloads into `[object Object]`.
+
+**Required:** one contract test asserting a bound-method rejection arrives as an object with a `code` field, so any future Wails upgrade fails loudly instead of silently corrupting the channel.
+
 ---
 
 ## 4. Reference adopter: CPU temperature (first site)
 
-The CPU temp failure path is the first real consumer of the new pattern. It validates the end-to-end shape: backend code → bridge string → frontend badge + i18n toast.
+Validates end-to-end: backend code → formatter → frontend badge + i18n toast.
 
 ### 4.1 Backend
 
 `pkg/sysinfo/errors.go`:
 ```go
 var (
-    errCPUTempUnavailable = errcode.New("warnCPUTempUnavailable")
-    errCPUTempNoReadings  = errcode.New("warnCPUTempNoReadings")
-    errCPUTempReadFailed  = errcode.New("warnCPUTempReadFailed")
+    ErrCPUTempUnavailable = errcode.New("warnCPUTempUnavailable")
+    ErrCPUTempNoReadings  = errcode.New("warnCPUTempNoReadings")
+    ErrCPUTempReadFailed  = errcode.New("warnCPUTempReadFailed")
 )
 ```
 
-`pkg/sysinfo/sysinfo.go` — `CPUTemperature()` returns the appropriate code error instead of the current generic `fmt.Errorf("cpu temperature unavailable")` from #50:
-
+`pkg/sysinfo/sysinfo.go`:
 ```go
 func (i SysInfo) CPUTemperature() (float64, error) {
     if !cputemp.IsAvailable() {
-        return 0, errCPUTempUnavailable
+        return 0, ErrCPUTempUnavailable
     }
     temps, err := cputemp.GetCPUTemperatures()
     if err != nil {
-        return 0, errcode.Wrap("warnCPUTempReadFailed", err)
+        return 0, ErrCPUTempReadFailed // detail intentionally dropped; no logs by design
     }
     if len(temps) == 0 {
-        return 0, errCPUTempNoReadings
+        return 0, ErrCPUTempNoReadings
     }
     // ... existing aggregation ...
 }
@@ -234,69 +245,45 @@ Add to `frontend/src/i18n/en.json` and `zh_Hant_HK.json`:
 ```json
 "warnCPUTempUnavailable": "CPU temperature detection is not available.",
 "warnCPUTempNoReadings":  "No CPU temperature readings.",
-"warnCPUTempReadFailed":  "Failed to read CPU temperature: {detail}"
+"warnCPUTempReadFailed":  "Failed to read CPU temperature."
 ```
 
-(Add `{detail}` interpolation only if backend params are wired for it.)
-
 ---
 
-## 5. Inventory of current touchpoints
-
-Full inventory produced by recon; abbreviated here. Categories:
-
-| Current pattern | Sites | Migration |
-|---|---|---|
-| RAW `reason.toString()` toast | DriverFormComponent (×2), MatchRuleFormComponent (×2), app-info.vue (×2), UpdateModal.vue, ProgressModal Abort | Phase 3 |
-| Localized toast, error dropped | drivers/index.vue (×3), match-rules/index.vue (×2), App.vue (×3), settings.vue, index.vue matcher | Phase 3 |
-| English substring-match | ProgressModal.toastErrMsg (16 lines), CommandStatusModal abort, TaskStatus run | Phase 2 |
-| Silent (state = null) | index.vue CPUTemperature | Reference adopter |
-| Title localized + body RAW | system-utilities.vue (9×) | Phase 3 |
-
-The substring-match sites are the priority — they are the worst offenders (English-coupled, break on backend text changes, and `ProgressModal.toastErrMsg` is 16 lines of `err.includes()`).
-
----
-
-## 6. Migration phases
+## 5. Migration phases
 
 | Phase | Scope | Risk |
 |---|---|---|
-| **1. Scaffold** | Create `pkg/errcode` package + `useBackendError` composable. Add CPU-temp codes + i18n entries. Wire CPU temp as reference adopter. | None — zero behavior change outside CPU temp |
-| **2. Worst offender** | Migrate `ProgressModal.toastErrMsg` → `.catch(toastError)`. Porter bound methods return `errcode.Error`. | Low |
-| **3. Remaining sites** | Migrate CRUD/matcher/updater/execute/abort `.catch` blocks. Each bound method returns `errcode.Error`. | Medium |
-| **4. Audit** | `grep -r 'err.includes\|reason.toString' frontend/src` → expect zero hits. | None |
+| **1. Scaffold** | Create `pkg/errcode`; wire `ErrorFormatter` in `main.go`; add contract test (§3.5); create `useBackendError`; add CPU-temp codes + i18n entries; wire CPU temp as reference adopter. | None outside CPU temp |
+| **2. Worst offenders** | Migrate `ProgressModal.toastErrMsg` → `.catch(toastError)`; porter bound methods return codes (parametrized `Newf` where a path/status genuinely helps the user); execute abort paths emit proper codes instead of relying on frontend substring matches. | Low |
+| **3. Remaining sites** | Storage CRUD (kill gorm SQL leaks), updater, matcher, App dialogs, system-utilities.vue (9×), remaining `.catch` blocks. Each bound method returns codes. | Medium |
+| **4. Audit** | `grep -r 'err.includes\|reason.toString' frontend/src` → zero hits. Spot-check that no bound method still returns raw inner errors. | None |
+
+Params policy: default to bare codes. Add `Newf` params only where the dynamic value has real user value (e.g., which file failed during import). Everything else collapses to a generic code — the ProgressModal already streams per-file progress, so the toast rarely needs the detail too.
 
 ---
 
-## 7. Refinements / anti-patterns to avoid
+## 6. Anti-patterns to avoid
 
-1. **No English substring-matching anywhere** — not in the composable, not in components, not in fallback logic. An early draft of `useBackendError` had `if (code.includes('context canceled')) return` to swallow user-abort — replace with a proper `errAborted` / `msgAborted` code emitted from the Go side (`porter.go` abort, `execute.go` abort). Composables must not hardcode English.
-2. **No catch-all `.catch(() => t('genericError'))`** — that swallows the actual code and defeats the purpose. Always pass the error through `toastError` (or `message` for non-toast display).
-3. **Boundary discipline** — every Wails-bound method is a conversion point. Existing methods that return `fmt.Errorf("pkg: %w", inner)` (porter, execute, storage, update) must be wrapped at the boundary. Worth a package-level comment in `pkg/errcode` and a code-review checklist item.
-4. **i18n completeness** — every new code requires entries in BOTH `en.json` and `zh_Hant_HK.json`. Safety net: `vue-i18n` falls back to the key string when missing (visible in UI, obvious in testing). Acceptable; not an excuse to skip locales.
-5. **Don't centralize all codes in one file** — colocate sentinels with the package that emits them (`pkg/porter/errors.go`, etc.). Easier to discover and maintain.
-
----
-
-## 8. Out of scope (future)
-
-- **Porter progress messages** (`JobSnapshot.Messages` — `"Packing: X"`, `"Backing up: X"`, `"Downloading..."`, `"Warning: cleanup issue: %v"`). These are **informational progress, not errors**. They cross via a snapshot struct, not the `error` return path. Unifying them needs a separate `Message{Code, Params}` type emitted in the snapshot — a future pass, not part of `errcode`.
-- **Updater `no releases found`** and http errors — covered by Phase 3 when the updater migrates.
-- **Dark-mode-specific message variants** — not needed; codes and messages are locale-independent.
+1. **No English substring-matching anywhere** — composables/components must not hardcode English. User-abort gets a proper `msgAborted`-style code emitted from Go (`porter.go` abort, `execute.go` abort).
+2. **No catch-all `.catch(() => t('genericError'))`** — always route through `toastError`/`message` so codes survive.
+3. **Boundary discipline** — never `%w`-wrap a code in a bound-method return; internal wrapping is fine since `errors.As` sees through `fmt.Errorf`.
+4. **i18n completeness** — every code needs entries in BOTH `en.json` and `zh_Hant_HK.json`. Missing keys fall back to the visible key string (obvious in testing, not an excuse).
+5. **Don't centralize codes** — sentinels live beside the package that emits them.
+6. **Don't grow the type back** — no `Wrap`/`Unwrap`/`Err` until a logger exists; no always-JSON `.Error()`; the dual fallback (object|string) in `codeOf` is intentional, don't "fix" it.
 
 ---
 
-## 9. Open decisions
+## 7. Out of scope (future)
 
-1. **Starter scope:** Phase 1 + CPU-temp adopter as proof (recommended), then Phase 2.
-2. **Composable vs plain helper module:** `useBackendError` as a composable (uses `useI18n` + `useToast`) — confirm preferred.
-3. **Toast-once behavior:** CPU-temp shows the toast once per session (flag `tempToasted`) to avoid spam if the state oscillates. Confirm for other long-running pollers (none currently).
-4. **Whether to also return a dev-facing English message alongside the code** for richer logs (the `Err` field already wraps it; currently not surfaced anywhere). Optional.
+- **Porter progress messages** (`JobSnapshot.Messages` — `"Packing: X"`, `"Backing up: X"`, …): informational progress crossing via snapshot struct, not the error path. Needs a separate `Message{Code, Params}` pass.
+- **Updater HTTP error detail** — covered in Phase 3 with plain codes.
+- **Dark-mode message variants** — unnecessary; codes are locale-independent.
 
 ---
 
-## 10. References
+## 8. References
 
 - CPU temperature feature: PR #48 (initial), #49 (badge colors), #50 (error sentinel + negative temps).
-- `PAWNIO_TEMP_PLAN.md` — sibling planning doc at repo root (precedent for `.md` handoffs).
+- Wails v2 error transport: `v2/internal/frontend/dispatcher/calls.go` (`.Error()` default, `errfmt` override), `options.ErrorFormatter` docs; master PR #5244 changes rejection wrapping — recheck on upgrade.
 - STYLE.md — i18n key prefixes (`err*`, `warn*`, `toast*`, `msg*`) and general conventions.
