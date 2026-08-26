@@ -62,7 +62,7 @@ jobs:
       - name: Build binary for Windows (${{ matrix.goarch }})
         run: |
           set GOARCH=${{ matrix.goarch }}
-          wails build -upx -ldflags "-X main.buildVersion=${{ github.ref_name }}"
+          wails build -ldflags "-X main.buildVersion=${{ github.ref_name }}"
 
       - name: Download and extract WebView2 runtime
         run: |
