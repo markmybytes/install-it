@@ -10,6 +10,8 @@ import (
 
 	"github.com/wailsapp/go-webview2/webviewloader"
 	wails_runtime "github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"install-it/pkg/errcode"
 )
 
 type App struct {
@@ -26,7 +28,7 @@ func (m *App) SetContext(ctx context.Context) {
 
 func (a *App) Cwd() (string, error) {
 	if exePath, err := os.Executable(); err != nil {
-		return "", err
+		return "", errcode.New("errAppExecLookup")
 	} else {
 		return filepath.Dir(exePath), nil
 	}
@@ -34,13 +36,17 @@ func (a *App) Cwd() (string, error) {
 
 func (a *App) SelectFolder(relative bool) (string, error) {
 	if path, err := wails_runtime.OpenDirectoryDialog(a.ctx, wails_runtime.OpenDialogOptions{}); err != nil || path == "" {
-		return "", err
+		return "", errcode.New("errAppDialogOpen")
 	} else if relative {
-		if exePath, err := os.Executable(); err != nil {
-			return "", err
-		} else {
-			return filepath.Rel(filepath.Dir(exePath), path)
+		exePath, err := os.Executable()
+		if err != nil {
+			return "", errcode.New("errAppExecLookup")
 		}
+		rel, err := filepath.Rel(filepath.Dir(exePath), path)
+		if err != nil {
+			return "", errcode.New("errAppExecLookup")
+		}
+		return rel, nil
 	} else {
 		return path, nil
 	}
@@ -48,13 +54,17 @@ func (a *App) SelectFolder(relative bool) (string, error) {
 
 func (a *App) SelectFile(relative bool) (string, error) {
 	if path, err := wails_runtime.OpenFileDialog(a.ctx, wails_runtime.OpenDialogOptions{}); err != nil || path == "" {
-		return "", err
+		return "", errcode.New("errAppDialogOpen")
 	} else if relative {
-		if exePath, err := os.Executable(); err != nil {
-			return "", err
-		} else {
-			return filepath.Rel(filepath.Dir(exePath), path)
+		exePath, err := os.Executable()
+		if err != nil {
+			return "", errcode.New("errAppExecLookup")
 		}
+		rel, err := filepath.Rel(filepath.Dir(exePath), path)
+		if err != nil {
+			return "", errcode.New("errAppExecLookup")
+		}
+		return rel, nil
 	} else {
 		return path, nil
 	}
@@ -71,7 +81,11 @@ func (a App) ExecutableExists(path string) bool {
 }
 
 func (a App) WebView2Version() (string, error) {
-	return webviewloader.GetAvailableCoreWebView2BrowserVersionString(pathWV2)
+	v, err := webviewloader.GetAvailableCoreWebView2BrowserVersionString(pathWV2)
+	if err != nil {
+		return "", errcode.New("errAppWebviewVersion")
+	}
+	return v, nil
 }
 
 func (a App) WebView2Path() string {

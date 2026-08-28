@@ -5,6 +5,7 @@ import * as groupStorage from '@/wailsjs/go/storage/DriverGroupStorage'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { decodeError } from '@/utils/index'
 
 const props = defineProps<{ id?: number }>()
 
@@ -92,22 +93,22 @@ function toggleAll() {
 
 function handleSubmit() {
   if (!group.value.name?.trim()) {
-    toast.add({ title: t('toastGroupNameRequired'), color: 'warning' })
+    toast.add({ title: t('warnGroupNameRequired'), color: 'warning' })
     return
   }
 
   if (group.value.drivers.length == 0) {
-    toast.add({ title: t('toastAddDriverRequired'), color: 'warning' })
+    toast.add({ title: t('warnAddDriverRequired'), color: 'warning' })
     return
   }
 
   if (group.value.drivers.some(d => !d.path?.trim())) {
-    toast.add({ title: t('toastPathRequired'), color: 'warning' })
+    toast.add({ title: t('warnPathRequired'), color: 'warning' })
     return
   }
 
   const handleSuccess = () => {
-    toast.add({ title: t('toastUpdated'), color: 'success' })
+    toast.add({ title: t('msgUpdated'), color: 'success' })
     groupStorage
       .All()
       .then(newDriverGroups => {
@@ -123,12 +124,12 @@ function handleSubmit() {
     groupStorage
       .Add(group.value)
       .then(handleSuccess)
-      .catch(reason => toast.add({ title: reason.toString(), color: 'error' }))
+      .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
   } else {
     groupStorage
       .Update(group.value)
       .then(handleSuccess)
-      .catch(reason => toast.add({ title: reason.toString(), color: 'error' }))
+      .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
   }
 }
 </script>

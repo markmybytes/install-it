@@ -13,6 +13,8 @@ import (
 
 	"github.com/yusufpapurcu/wmi"
 	"golang.org/x/sys/windows"
+
+	"install-it/pkg/errcode"
 )
 
 // IOCTL codes for PawnIO 2.2.0 (pawnio_um.h):
@@ -55,11 +57,13 @@ func executeFn(handle windows.Handle, fnName string, params ...uint64) (uint64, 
 	}
 	out := make([]byte, 8)
 	var returned uint32
-	err := windows.DeviceIoControl(handle, IOCTL_PIO_EXECUTE_FN,
+	if err := windows.DeviceIoControl(handle, IOCTL_PIO_EXECUTE_FN,
 		&buf[0], uint32(bufSize),
 		&out[0], 8,
-		&returned, nil)
-	return binary.LittleEndian.Uint64(out), err
+		&returned, nil); err != nil {
+		return 0, errcode.New("errCPUTempReadFailed")
+	}
+	return binary.LittleEndian.Uint64(out), nil
 }
 
 // cpuVendorInfo is the minimal Win32_Processor projection used by

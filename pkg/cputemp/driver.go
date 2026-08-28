@@ -18,6 +18,8 @@ import (
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"install-it/pkg/errcode"
 )
 
 const (
@@ -38,11 +40,11 @@ const (
 func Init(exeDir string) error {
 	installer, intelMSR, ryzenSMU, err := resolveAssets(exeDir)
 	if err != nil {
-		return fail(err)
+		return fail(errcode.New("errCPUTempInitFailed"))
 	}
 
 	if err := ensureInstalled(installer); err != nil {
-		return fail(err)
+		return fail(errcode.New("errCPUTempInitFailed"))
 	}
 
 	handle, err := windows.CreateFile(
@@ -54,7 +56,7 @@ func Init(exeDir string) error {
 		0, 0,
 	)
 	if err != nil {
-		return fail(fmt.Errorf("open PawnIO device: %w", err))
+		return fail(errcode.New("errCPUTempInitFailed"))
 	}
 
 	vendor := detectVendor()
@@ -74,7 +76,7 @@ func Init(exeDir string) error {
 	}
 	if err != nil {
 		windows.CloseHandle(handle)
-		return fail(err)
+		return fail(errcode.New("errCPUTempInitFailed"))
 	}
 
 	drvHandle.Store(uintptr(handle))
@@ -107,7 +109,7 @@ func resolveAssets(exeDir string) (installer, intelMSR, ryzenSMU string, err err
 			return installer, intelMSR, ryzenSMU, nil
 		}
 	}
-	return "", "", "", fmt.Errorf("PawnIO assets not found in %v — run `go generate ./pkg/cputemp/`", dirs)
+	return "", "", "", errcode.Newf("errCPUTempAssetsMissing", map[string]any{"dirs": dirs})
 }
 
 // ensureInstalled runs the PawnIO installer unless the registry uninstall
@@ -126,7 +128,10 @@ func ensureInstalled(installer string) error {
 		if errors.As(err, &exitErr) && exitErr.ExitCode() == errorSuccessRebootRequired {
 			return nil
 		}
-		return fmt.Errorf("run %s: %w (%s)", filepath.Base(installer), err, strings.TrimSpace(string(out)))
+		return errcode.Newf("errCPUTempInstallFailed", map[string]any{
+			"installer": filepath.Base(installer),
+			"output":    strings.TrimSpace(string(out)),
+		})
 	}
 	return nil
 }
@@ -145,17 +150,17 @@ func pawnIOInstalled() bool {
 func loadModule(handle windows.Handle, path string) error {
 	blob, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("read module %s: %w", filepath.Base(path), err)
+		return errcode.Newf("errCPUTempModuleRead", map[string]any{"module": filepath.Base(path)})
 	}
 	if len(blob) == 0 {
-		return fmt.Errorf("read module %s: empty file", filepath.Base(path))
+		return errcode.Newf("errCPUTempModuleEmpty", map[string]any{"module": filepath.Base(path)})
 	}
 	var returned uint32
 	if err := windows.DeviceIoControl(handle, IOCTL_PIO_LOAD_BINARY,
 		&blob[0], uint32(len(blob)),
 		nil, 0,
 		&returned, nil); err != nil {
-		return fmt.Errorf("load module %s: %w", filepath.Base(path), err)
+		return errcode.Newf("errCPUTempModuleLoad", map[string]any{"module": filepath.Base(path)})
 	}
 	return nil
 }

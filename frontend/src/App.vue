@@ -6,6 +6,7 @@ import * as ruleSetStorage from '@/wailsjs/go/storage/RuleSetStorage'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RouteLocationRaw } from 'vue-router'
+import { decodeError } from '@/utils/index'
 import { latestRelease } from './utils'
 
 const { t, locale } = useI18n()
@@ -27,26 +28,20 @@ Promise.all([
   driverGroupStorage
     .All()
     .then(gs => (groupStore.groups = gs))
-    .catch(() => {
-      toast.add({ title: t('toastReadDriversFailed'), color: 'error' })
-    }),
+    .catch(err => toast.add({ title: decodeError(err, t), color: 'error' })),
   appSettingStorage
     .All()
     .then(s => {
       settingsStore.settings = s
       locale.value = s.language
     })
-    .catch(() => {
-      toast.add({ title: t('toastReadAppSettingsFailed'), color: 'error' })
-    }),
+    .catch(err => toast.add({ title: decodeError(err, t), color: 'error' })),
   ruleSetStorage
     .All()
     .then(rs => {
       matchStore.ruleSets = rs
     })
-    .catch(() => {
-      toast.add({ title: t('toastReadAppSettingsFailed'), color: 'error' })
-    })
+    .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
 ])
   .then(() => {
     setTimeout(() => {
@@ -55,7 +50,7 @@ Promise.all([
           latestRelease(version).then(release => {
             hasUpdate.value = release.hasUpdate
             if (release.hasUpdate) {
-              toast.add({ title: t('toastUpdateAvailable'), color: 'info', duration: 1000 })
+              toast.add({ title: t('msgUpdateAvailable'), color: 'info', duration: 1000 })
             }
           })
         )

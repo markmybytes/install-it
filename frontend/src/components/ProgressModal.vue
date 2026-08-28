@@ -2,6 +2,7 @@
 import { porter } from '@/wailsjs/go/models'
 import * as programPorter from '@/wailsjs/go/porter/Porter'
 import * as runtime from '@/wailsjs/runtime'
+import { decodeError } from '@/utils/index'
 import { computed, nextTick, onUnmounted, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -62,7 +63,7 @@ defineExpose({
 
     programPorter
       .Export(destination)
-      .catch(toastErrMsg)
+      .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
       .finally(() => {
         resetInterval()
         updateProgress()
@@ -85,7 +86,7 @@ defineExpose({
           isOpen.value = false
         })
         .catch(err => {
-          toastErrMsg(err)
+          toast.add({ title: decodeError(err, t), color: 'error' })
           reject(err)
         })
         .finally(() => {
@@ -106,7 +107,7 @@ defineExpose({
     if (from === 'url') {
       programPorter
         .ImportFromURL(opts)
-        .catch(toastErrMsg)
+        .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
         .finally(() => {
           resetInterval()
           updateProgress()
@@ -114,7 +115,7 @@ defineExpose({
     } else {
       programPorter
         .ImportFromFile(source, opts)
-        .catch(toastErrMsg)
+        .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
         .finally(() => {
           resetInterval()
           updateProgress()
@@ -125,40 +126,34 @@ defineExpose({
   }
 })
 
+const progressToasted = ref(false)
+
 function updateProgress() {
-  return programPorter.Progress().then(p => {
-    const scroll =
-      messageBox.value &&
-      messageBox.value.scrollHeight - messageBox.value.scrollTop - messageBox.value.clientHeight <
-        15
+  return programPorter
+    .Progress()
+    .then(p => {
+      progressToasted.value = false
 
-    snapshot.value = p
-    messages.value.push(...(p.messages ?? []).filter(m => m !== ''))
+      const scroll =
+        messageBox.value &&
+        messageBox.value.scrollHeight - messageBox.value.scrollTop - messageBox.value.clientHeight <
+          15
 
-    if (scroll && messageBox.value) {
-      nextTick(() => {
-        messageBox.value!.scrollTop = messageBox.value!.scrollHeight
-      })
-    }
-  })
-}
+      snapshot.value = p
+      messages.value.push(...(p.messages ?? []).filter(m => m !== ''))
 
-function toastErrMsg(err: string) {
-  if (err.includes('context canceled')) return
-  if (err.includes('The system cannot find the path specified.'))
-    toast.add({ title: t('toastPathNotFound'), color: 'error' })
-  else if (err.includes('unsupported protocol scheme'))
-    toast.add({ title: t('toastUnsupportedUrlProtocol'), color: 'error' })
-  else if (err.includes('no such host')) toast.add({ title: t('toastNoSuchHost'), color: 'error' })
-  else if (err == 'zip: not a valid zip file')
-    toast.add({ title: t('toastInvalidZipFile'), color: 'error' })
-  else if (err.includes('porter: nothing to import'))
-    toast.add({ title: t('errNoCategoriesSelected'), color: 'error' })
-  else if (err.includes('porter: selected categories not found'))
-    toast.add({ title: t('errCategoriesNotFound'), color: 'error' })
-  else if (err.includes('porter: nothing to backup or import'))
-    toast.add({ title: t('errNothingToImport'), color: 'error' })
-  else toast.add({ title: err, color: 'error' })
+      if (scroll && messageBox.value) {
+        nextTick(() => {
+          messageBox.value!.scrollTop = messageBox.value!.scrollHeight
+        })
+      }
+    })
+    .catch(err => {
+      if (!progressToasted.value) {
+        toast.add({ title: decodeError(err, t), color: 'error' })
+        progressToasted.value = true
+      }
+    })
 }
 </script>
 
@@ -208,7 +203,7 @@ function toastErrMsg(err: string) {
               color="error"
               @click="
                 () => {
-                  programPorter.Abort().catch(err => toast.add({ title: err, color: 'error' }))
+                  programPorter.Abort().catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
                 }
               "
             >

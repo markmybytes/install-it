@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
 	"install-it/pkg/cputemp"
+	"install-it/pkg/errcode"
 	"install-it/pkg/execute"
 	"install-it/pkg/matching"
 	"install-it/pkg/porter"
@@ -118,6 +120,13 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		ErrorFormatter: func(err error) any {
+			var ec *errcode.Error
+			if errors.As(err, &ec) {
+				return ec // marshaled to {"code": "...", "params": {...}}
+			}
+			return err.Error() // unmigrated/raw errors fall back to plain string
+		},
 		OnStartup: func(ctx context.Context) {
 			// Fail-safe cleanup
 			oldBin := filepath.Join(dirRoot, "install-it.exe.old")

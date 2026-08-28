@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { TriggerNativeUpdate } from '@/wailsjs/go/update/Updater'
 import { Quit } from '@/wailsjs/runtime/runtime'
+import { decodeError } from '@/utils/index'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 defineProps<{ currentVersion: string }>()
 
@@ -36,6 +38,7 @@ defineExpose({
 
 const toast = useToast()
 const $loading = useLoading()
+const { t } = useI18n()
 
 const selectedUrl = computed(() => {
   if (!updateResult.value) return ''
@@ -127,12 +130,12 @@ watch(
           @click="
             () => {
               if (!selectedUrl) {
-                toast.add({ title: $t('toastNoAssetUrl'), color: 'error' })
+                toast.add({ title: $t('warnNoAssetUrl'), color: 'error' })
                 return
               }
 
               toast.add({
-                title: $t('toastDownloadingUpdater'),
+                title: $t('msgDownloadingUpdater'),
                 color: 'info',
                 duration: 60 * 1000
               })
@@ -140,7 +143,7 @@ watch(
 
               TriggerNativeUpdate(selectedUrl)
                 .then(() => Quit())
-                .catch(reason => toast.add({ title: reason, color: 'error' }))
+                .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
                 .finally(() => loader.hide())
             }
           "

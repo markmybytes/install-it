@@ -5,7 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"os/exec"
 	"syscall"
+
+	"install-it/pkg/errcode"
 
 	"github.com/puzpuzpuz/xsync/v3"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -53,7 +56,7 @@ func (ce *CommandExecutor) RunAndOutput(program string, options []string, hideWi
 	}
 
 	if err := command.Run(); err != nil {
-		errMsg = err.Error()
+		errMsg = runFailureCode(err)
 	}
 
 	return CommandResult{
@@ -68,10 +71,10 @@ func (ce *CommandExecutor) RunAndOutput(program string, options []string, hideWi
 
 func (ce *CommandExecutor) Abort(id string) error {
 	if task, ok := ce.commands.Load(id); !ok {
-		return errors.New("execute: id not found")
+		return errcode.New("errExecuteIdNotFound")
 	} else {
 		if err := task.Stop(); err != nil {
-			return errors.Join(err, errors.New("execute: abort failed"))
+			return errcode.New("errExecuteAbortFailed")
 		}
 		return nil
 	}
@@ -81,14 +84,14 @@ func (ce *CommandExecutor) dispatch(id string) {
 	command, ok := ce.commands.Load(id)
 	if !ok {
 		runtime.EventsEmit(ce.ctx, "execute:exited", id, CommandResult{
-			Error: "execute: id not found",
+			Error: "errExecuteIdNotFound",
 		})
 		return
 	}
 
 	var errMsg string
 	if err := command.Run(); err != nil {
-		errMsg = err.Error()
+		errMsg = runFailureCode(err)
 	}
 
 	runtime.EventsEmit(ce.ctx, "execute:exited", id, CommandResult{
@@ -117,4 +120,23 @@ func (ce CommandExecutor) generateId() string {
 		id = tmpId
 	}
 	return id
+}
+
+// runFailureCode maps a `command.Run()` error to an errcode code string.
+// *exec.ExitError is not a startup failure (the process exited non-zero),
+// so it returns "" and the frontend uses the exit code + stderr for display.
+// Any other error (path not found, permission denied, …) returns a single
+// code; the raw error text is already in CommandResult.Stderr.
+func runFailureCode(err error) string {
+	if err == nil {
+		return ""
+	}
+	if _, ok := err.(*exec.ExitError); ok {
+		return ""
+	}
+	if errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) ||
+		errors.Is(err, syscall.ERROR_PATH_NOT_FOUND) {
+		return "errFileNotFound"
+	}
+	return "errExecuteRunFailed"
 }

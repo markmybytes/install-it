@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	"golang.org/x/sys/windows"
+
+	"install-it/pkg/errcode"
 )
 
 const (
@@ -48,7 +50,7 @@ func GetCPUTemperatures() ([]CPUTemp, error) {
 func readIntel(handle windows.Handle) ([]CPUTemp, error) {
 	tjMaxVal, err := executeFn(handle, "ioctl_read_msr", msrTjMax)
 	if err != nil {
-		return nil, fmt.Errorf("read MSR 0x1A2: %w", err)
+		return nil, errcode.New("errCPUTempMSRRead")
 	}
 	tjMax := float64((tjMaxVal >> 16) & 0xFF)
 	if tjMax == 0 {
@@ -57,11 +59,11 @@ func readIntel(handle windows.Handle) ([]CPUTemp, error) {
 
 	val, err := executeFn(handle, "ioctl_read_msr", msrPackageTemp)
 	if err != nil {
-		return nil, fmt.Errorf("read MSR 0x1B1: %w", err)
+		return nil, errcode.New("errCPUTempMSRRead")
 	}
 	if val&0x80000000 == 0 {
 		// VALID bit clear — no reading yet. Skip this tick.
-		return nil, fmt.Errorf("MSR 0x1B1 invalid (bit 31 clear)")
+		return nil, errcode.New("errCPUTempMSRRead")
 	}
 	digitalReadout := float64((val >> 16) & 0x7F)
 	return []CPUTemp{{Name: "CPU Package", Value: tjMax - digitalReadout}}, nil
@@ -76,7 +78,7 @@ func readAMD(handle windows.Handle) ([]CPUTemp, error) {
 
 	val, err := executeFn(handle, "ioctl_read_smu_register", smuTempRegister)
 	if err != nil {
-		return nil, fmt.Errorf("read SMU 0x59800: %w", err)
+		return nil, errcode.New("errCPUTempSMURead")
 	}
 
 	rawTemp := float64(val>>21) * 0.125

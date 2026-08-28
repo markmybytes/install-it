@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import * as executor from '@/wailsjs/go/execute/CommandExecutor'
+import { decodeError } from '@/utils/index'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -47,7 +48,7 @@ function confirmPowerAction() {
               executor.RunAndOutput('mmc.exe', ['compmgmt.msc'], false).catch(error =>
                 toast.add({
                   title: t('errToolOpenFailed'),
-                  description: String(error),
+                  description: decodeError(error, t),
                   color: 'error',
                   icon: 'mdi:cross-circle-outline'
                 })
@@ -66,7 +67,7 @@ function confirmPowerAction() {
               executor.RunAndOutput('mmc.exe', ['devmgmt.msc'], false).catch(error =>
                 toast.add({
                   title: t('errToolOpenFailed'),
-                  description: String(error),
+                  description: decodeError(error, t),
                   color: 'error',
                   icon: 'mdi:cross-circle-outline'
                 })
@@ -85,7 +86,7 @@ function confirmPowerAction() {
               executor.RunAndOutput('mmc.exe', ['diskmgmt.msc'], false).catch(error =>
                 toast.add({
                   title: t('errToolOpenFailed'),
-                  description: String(error),
+                  description: decodeError(error, t),
                   color: 'error',
                   icon: 'mdi:cross-circle-outline'
                 })
@@ -110,7 +111,7 @@ function confirmPowerAction() {
               executor.RunAndOutput('cmd', ['/c', 'start', 'ms-settings:'], false).catch(error =>
                 toast.add({
                   title: t('errToolOpenFailed'),
-                  description: String(error),
+                  description: decodeError(error, t),
                   color: 'error',
                   icon: 'mdi:cross-circle-outline'
                 })
@@ -131,7 +132,7 @@ function confirmPowerAction() {
                 .catch(error =>
                   toast.add({
                     title: t('errToolOpenFailed'),
-                    description: String(error),
+                    description: decodeError(error, t),
                     color: 'error',
                     icon: 'mdi:cross-circle-outline'
                   })
@@ -152,7 +153,7 @@ function confirmPowerAction() {
                 .catch(error =>
                   toast.add({
                     title: t('errToolOpenFailed'),
-                    description: String(error),
+                    description: decodeError(error, t),
                     color: 'error',
                     icon: 'mdi:cross-circle-outline'
                   })
@@ -173,7 +174,7 @@ function confirmPowerAction() {
                 .catch(error =>
                   toast.add({
                     title: t('errToolOpenFailed'),
-                    description: String(error),
+                    description: decodeError(error, t),
                     color: 'error',
                     icon: 'mdi:cross-circle-outline'
                   })
@@ -194,7 +195,7 @@ function confirmPowerAction() {
                 .catch(error =>
                   toast.add({
                     title: t('errToolOpenFailed'),
-                    description: String(error),
+                    description: decodeError(error, t),
                     color: 'error',
                     icon: 'mdi:cross-circle-outline'
                   })
@@ -215,7 +216,7 @@ function confirmPowerAction() {
                 .catch(error =>
                   toast.add({
                     title: t('errToolOpenFailed'),
-                    description: String(error),
+                    description: decodeError(error, t),
                     color: 'error',
                     icon: 'mdi:cross-circle-outline'
                   })

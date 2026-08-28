@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+
+	"install-it/pkg/errcode"
 )
 
 type AppSetting struct {
@@ -55,11 +57,11 @@ func (s *AppSettingStorage) All() (AppSetting, error) {
 			}
 			return s.setting, s.write()
 		}
-		return AppSetting{}, err
+		return AppSetting{}, errcode.New("errStorageReadFailed")
 	}
 
 	if err := json.Unmarshal(bytes, &s.setting); err != nil {
-		return AppSetting{}, err
+		return AppSetting{}, errcode.New("errStorageParseFailed")
 	}
 	// Backfill: legacy setting.json predates cpu_temp_refresh_interval.
 	if s.setting.CPUTempRefreshInterval <= 0 {
@@ -76,7 +78,10 @@ func (s *AppSettingStorage) Update(v AppSetting) (AppSetting, error) {
 func (s *AppSettingStorage) write() error {
 	bytes, err := json.Marshal(s.setting)
 	if err != nil {
-		return err
+		return errcode.New("errStorageSaveFailed")
 	}
-	return os.WriteFile(s.Path, bytes, 0644)
+	if err := os.WriteFile(s.Path, bytes, 0644); err != nil {
+		return errcode.New("errStorageSaveFailed")
+	}
+	return nil
 }

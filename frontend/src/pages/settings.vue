@@ -3,6 +3,7 @@ import { storage } from '@/wailsjs/go/models'
 import * as appSettingStorage from '@/wailsjs/go/storage/AppSettingStorage'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { decodeError } from '@/utils/index'
 
 const { t, locale } = useI18n()
 const toast = useToast()
@@ -45,11 +46,9 @@ function handleSubmit() {
     })
     .then(() => {
       locale.value = settings.value.language
-      toast.add({ title: t('toastSaved'), color: 'success' })
+      toast.add({ title: t('msgSaved'), color: 'success' })
     })
-    .catch(() => {
-      toast.add({ title: t('toastSaveFailed'), color: 'error' })
-    })
+    .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
 }
 </script>
 

@@ -8,6 +8,7 @@ import { sysinfo } from '@/wailsjs/go/models'
 import * as sysinfoApi from '@/wailsjs/go/sysinfo/SysInfo'
 import { computed, onBeforeMount, onBeforeUnmount, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { decodeError } from '@/utils/index'
 
 const { t } = useI18n()
 
@@ -34,6 +35,8 @@ const systemInfo = ref<{ hw: sysinfo.ResolvedHardware | null; os: sysinfo.OSInfo
 })
 
 const cpuTemp = ref<number | null>(null)
+const cpuTempError = ref<string | null>(null)
+const tempToasted = ref(false)
 let timer: ReturnType<typeof setTimeout> | null = null
 
 const selectedNetwork = ref<number>(0)
@@ -54,10 +57,18 @@ onBeforeMount(() => {
       sysinfoApi
         .CPUTemperature()
         .then(t => {
+          cpuTempError.value = null
           cpuTemp.value = Math.round(t)
         })
-        .catch(() => {
-          cpuTemp.value = null
+        .catch(err => {
+          cpuTempError.value = decodeError(err, t)
+          if (!tempToasted.value) {
+            // Color = 'warning' for warn* codes (per handoff §3.3 prefix guidance)
+            const color = String(err?.code ?? '').startsWith('warn') ? 'warning' : 'error'
+            toast.add({ title: decodeError(err, t), color })
+            tempToasted.value = true
+          }
+          // stop polling on permanent failure: timer = null (only if code is permanent; for now leave polling alone)
         })
         .finally(() => {
           if (timer === null) return
@@ -86,7 +97,7 @@ function selectMatchedOptions() {
         }
       })
     })
-    .catch(() => toast.add({ title: t('toastNoHardwareInfo'), color: 'error' }))
+    .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
 }
 
 function resetSelection() {
@@ -182,7 +193,7 @@ async function handleSubmit() {
   })
 
   if (commands.length == 0) {
-    toast.add({ title: t('toastNoInputWarning'), color: 'warning' })
+    toast.add({ title: t('warnNoInputWarning'), color: 'warning' })
     return
   }
 
@@ -205,18 +216,20 @@ onBeforeUnmount(() => {
           <h2 class="text-sm font-bold">
             {{ $t(hwKey(part)) }}
             <UBadge
-              v-if="part === 'cpu' && cpuTemp !== null"
+              v-if="part === 'cpu' && (cpuTemp !== null || cpuTempError !== null)"
               size="sm"
               class="ms-1 rounded px-1.5 py-0 text-xs font-medium"
               :class="
-                cpuTemp < 45
-                  ? 'bg-apple-green-100 text-apple-green-700'
-                  : cpuTemp >= 85
-                    ? 'bg-red-100 text-red-700'
-                    : 'bg-yellow-100 text-yellow-700'
+                cpuTempError !== null
+                  ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                  : cpuTemp! < 45
+                    ? 'bg-apple-green-100 text-apple-green-700'
+                    : cpuTemp! >= 85
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-yellow-100 text-yellow-700'
               "
             >
-              {{ cpuTemp }}°C
+              {{ cpuTempError !== null ? '--' : cpuTemp! }}°C
             </UBadge>
           </h2>
 

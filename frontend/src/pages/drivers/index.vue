@@ -6,6 +6,7 @@ import * as groupStorage from '@/wailsjs/go/storage/DriverGroupStorage'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { decodeError } from '@/utils/index'
 
 const { t } = useI18n()
 
@@ -40,7 +41,7 @@ const { enabled: sortEnabled } = useReorderable('container', {
 
     groupStorage
       .MoveBehind(sourceItem.id, targetGlobalIdx - (sourceGlobalIdx <= targetGlobalIdx ? 1 : 0))
-      .catch(() => toast.add({ title: t('toastSaveFailed'), color: 'error' }))
+      .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
       .finally(reloadGroups)
   }
 })
@@ -49,9 +50,7 @@ async function reloadGroups() {
   return groupStorage
     .All()
     .then(gs => (groupStore.groups = gs))
-    .catch(() => {
-      toast.add({ title: t('toastReadDriversFailed'), color: 'error' })
-    })
+    .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
 }
 
 const filteredGroups = computed(() =>
@@ -209,9 +208,7 @@ function openInspect(id: number) {
                   groupStorage
                     .Clone(g.id)
                     .then(() => reloadGroups())
-                    .catch(() => {
-                      toast.add({ title: $t('toastSaveFailed'), color: 'error' })
-                    })
+                    .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
                 "
               >
                 <Icon icon="mdi:content-duplicate" class="text-base" />
@@ -314,9 +311,7 @@ function openInspect(id: number) {
                 groupStorage
                   .Remove(modal.deleteId)
                   .then(() => reloadGroups())
-                  .catch(() => {
-                    toast.add({ title: $t('toastDeleteFailed'), color: 'error' })
-                  })
+                  .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
                   .finally(() => {
                     modal.deleteId = null
                   })

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"install-it/pkg/errcode"
 	"install-it/pkg/storage"
 )
 
@@ -36,12 +37,12 @@ func NewMatcher(rules RuleSetReader, hw HardwareQuerier) *Matcher {
 func (m *Matcher) MatchedGroupIds() ([]uint, error) {
 	hw, err := m.hardware.HardwareMap()
 	if err != nil {
-		return nil, err
+		return nil, errcode.New("errHardwareQueryFailed")
 	}
 
 	ruleSets, err := m.rules.All()
 	if err != nil {
-		return nil, err
+		return nil, errcode.New("errRulesLoadFailed")
 	}
 
 	seen := make(map[uint]bool)

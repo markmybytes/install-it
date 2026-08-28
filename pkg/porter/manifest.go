@@ -3,8 +3,9 @@ package porter
 import (
 	"archive/zip"
 	"encoding/json"
-	"fmt"
 	"time"
+
+	"install-it/pkg/errcode"
 )
 
 type Manifest struct {
@@ -26,27 +27,27 @@ func readManifest(zr *zip.ReadCloser) (Manifest, error) {
 		if f.Name == "manifest.json" {
 			rc, err := f.Open()
 			if err != nil {
-				return Manifest{}, fmt.Errorf("porter: cannot open manifest.json: %w", err)
+				return Manifest{}, errcode.New("errImportManifestOpen")
 			}
 			defer rc.Close()
 
 			var m Manifest
 			if err := json.NewDecoder(rc).Decode(&m); err != nil {
-				return Manifest{}, fmt.Errorf("porter: invalid manifest.json: %w", err)
+				return Manifest{}, errcode.New("errImportManifestInvalid")
 			}
 			return m, nil
 		}
 	}
-	return Manifest{}, fmt.Errorf("porter: manifest.json not found in archive")
+	return Manifest{}, errcode.New("errImportManifestMissing")
 }
 
 func writeManifest(zw *zip.Writer, m Manifest) error {
 	entry, err := zw.Create("manifest.json")
 	if err != nil {
-		return fmt.Errorf("porter: cannot create manifest.json entry: %w", err)
+		return errcode.New("errExportManifestCreate")
 	}
 	if err := json.NewEncoder(entry).Encode(m); err != nil {
-		return fmt.Errorf("porter: cannot encode manifest.json: %w", err)
+		return errcode.New("errExportManifestEncode")
 	}
 	return nil
 }

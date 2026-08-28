@@ -6,6 +6,7 @@ import * as ruleSetStorage from '@/wailsjs/go/storage/RuleSetStorage'
 import { computed, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { decodeError } from '@/utils/index'
 
 const props = defineProps<{ id?: number }>()
 
@@ -40,12 +41,12 @@ const { data: ruleSet } = useEditor({
 
 function handleSubmit() {
   if (ruleSet.value.rules.length == 0) {
-    toast.add({ title: t('toastAddRuleRequired'), color: 'warning' })
+    toast.add({ title: t('warnAddRuleRequired'), color: 'warning' })
     return
   }
 
   const handleSuccess = () => {
-    toast.add({ title: t('toastUpdated'), color: 'success' })
+    toast.add({ title: t('msgUpdated'), color: 'success' })
 
     ruleSetStorage.All().then(newMatchRule => {
       ruleStore.ruleSets = newMatchRule
@@ -57,12 +58,12 @@ function handleSubmit() {
     ruleSetStorage
       .Add(ruleSet.value)
       .then(handleSuccess)
-      .catch(reason => toast.add({ title: reason.toString(), color: 'error' }))
+      .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
   } else {
     ruleSetStorage
       .Update(ruleSet.value)
       .then(handleSuccess)
-      .catch(reason => toast.add({ title: reason.toString(), color: 'error' }))
+      .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
   }
 }
 </script>

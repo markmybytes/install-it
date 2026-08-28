@@ -3,6 +3,7 @@ import { Cwd, SelectFile, SelectFolder } from '@/wailsjs/go/main/App'
 import { porter } from '@/wailsjs/go/models'
 import { ValidateZip } from '@/wailsjs/go/porter/Porter'
 import * as appStorage from '@/wailsjs/go/storage/AppSettingStorage'
+import { decodeError } from '@/utils/index'
 import { onBeforeMount, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -29,7 +30,10 @@ const previewSource = ref({ from: 'file' as 'file' | 'url', source: '' })
 const importOpts = ref({ data: true, settings: true })
 
 onBeforeMount(() => {
-  appStorage.All().then(s => (importInput.value.url = s.driver_download_url))
+  appStorage
+    .All()
+    .then(s => (importInput.value.url = s.driver_download_url))
+    .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
 
   Cwd().then(cwd => {
     exportDirectory.value = cwd
@@ -65,22 +69,18 @@ function openPreview(p: porter.ImportPreview, from: 'file' | 'url', source: stri
 
 function handleValidateFile() {
   if (!importInput.value.filePath) {
-    toast.add({ title: t('toastPathNotFound'), color: 'warning' })
+    toast.add({ title: t('errPathNotFound'), color: 'warning' })
     return
   }
 
   ValidateZip(importInput.value.filePath)
     .then(p => openPreview(p, 'file', importInput.value.filePath))
-    .catch(err => {
-      if (err.includes('manifest.json not found'))
-        toast.add({ title: t('toastInvalidZipFile'), color: 'error' })
-      else toast.add({ title: err, color: 'error' })
-    })
+    .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
 }
 
 async function handleDownloadUrl() {
   if (!importInput.value.url) {
-    toast.add({ title: t('toastUnsupportedUrlProtocol'), color: 'warning' })
+    toast.add({ title: t('errUnsupportedUrlProtocol'), color: 'warning' })
     return
   }
 
@@ -140,11 +140,13 @@ function handleImport() {
             color="primary"
             @click="
               () => {
-                SelectFolder(false).then(path => {
-                  if (path != '') {
-                    exportDirectory = path
-                  }
-                })
+                SelectFolder(false)
+                  .then(path => {
+                    if (path != '') {
+                      exportDirectory = path
+                    }
+                  })
+                  .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
               }
             "
           >
@@ -161,7 +163,7 @@ function handleImport() {
           @click="
             () => {
               if (!exportDirectory) {
-                toast.add({ title: $t('toastEnterExportPath'), color: 'warning' })
+                toast.add({ title: $t('warnEnterExportPath'), color: 'warning' })
               } else {
                 progressModal?.export(exportDirectory)
               }
@@ -223,11 +225,13 @@ function handleImport() {
             color="primary"
             @click="
               () => {
-                SelectFile(false).then(path => {
-                  if (path != '') {
-                    importInput.filePath = path
-                  }
-                })
+                SelectFile(false)
+                  .then(path => {
+                    if (path != '') {
+                      importInput.filePath = path
+                    }
+                  })
+                  .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
               }
             "
           >
