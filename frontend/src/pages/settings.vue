@@ -259,36 +259,6 @@ function handleSubmit() {
           <hr class="border-gray-100 dark:border-gray-800" />
 
           <section>
-            <h3 class="mb-3 text-lg font-bold">{{ $t('settingHardwareInfo') }}</h3>
-
-            <div class="flex flex-col gap-y-3">
-              <label class="flex w-fit cursor-pointer items-center select-none">
-                <UCheckbox
-                  v-model="settings.filter_miniport_nic"
-                  name="filter_miniport_nic"
-                  color="primary"
-                  class="me-2"
-                />
-
-                <span>{{ $t('settingHideMiniportNic') }}</span>
-              </label>
-
-              <label class="flex w-fit cursor-pointer items-center select-none">
-                <UCheckbox
-                  v-model="settings.filter_microsoft_nic"
-                  name="filter_microsoft_nic"
-                  color="primary"
-                  class="me-2"
-                />
-
-                <span>{{ $t('settingHideMicrosoftNic') }}</span>
-              </label>
-            </div>
-          </section>
-
-          <hr class="border-gray-100 dark:border-gray-800" />
-
-          <section>
             <h3 class="mb-3 text-lg font-bold">{{ $t('settingCPUTemp') }}</h3>
 
             <div class="flex flex-col gap-y-3">

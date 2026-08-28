@@ -20,12 +20,6 @@ func TestAppSettingStorage_AllWithoutExistingFile(t *testing.T) {
 	if result.AutoCheckUpdate != true {
 		t.Errorf("expected AutoCheckUpdate to be true, got %v", result.AutoCheckUpdate)
 	}
-	if result.FilterMiniportNic != true {
-		t.Errorf("expected FilterMiniportNic to be true, got %v", result.FilterMiniportNic)
-	}
-	if result.FilterMicrosoftNic != true {
-		t.Errorf("expected FilterMicrosoftNic to be true, got %v", result.FilterMicrosoftNic)
-	}
 	if result.Language != "en" {
 		t.Errorf("expected Language to be 'en', got %s", result.Language)
 	}
@@ -48,8 +42,6 @@ func TestAppSettingStorage_AllWithExistingFile(t *testing.T) {
 		ParallelInstall:    false,
 		SuccessAction:      Reboot,
 		SuccessActionDelay: 10,
-		FilterMiniportNic:  false,
-		FilterMicrosoftNic: false,
 		Language:           "zh_Hant_HK",
 		DriverDownloadUrl:  "https://example.com",
 		AutoCheckUpdate:    false,
@@ -112,8 +104,6 @@ func TestAppSettingStorage_Update(t *testing.T) {
 		ParallelInstall:    false,
 		SuccessAction:      Shutdown,
 		SuccessActionDelay: 30,
-		FilterMiniportNic:  true,
-		FilterMicrosoftNic: false,
 		Language:           "zh_Hant_HK",
 		DriverDownloadUrl:  "https://drivers.example.com",
 		AutoCheckUpdate:    false,
@@ -197,8 +187,6 @@ func TestLegacySettingMigration(t *testing.T) {
 		"parallel_install": true,
 		"success_action": "nothing",
 		"success_action_delay": 5,
-		"filter_miniport_nic": true,
-		"filter_microsoft_nic": true,
 		"language": "en",
 		"driver_download_url": "",
 		"auto_check_update": true,
