@@ -224,8 +224,8 @@ func TestExtractZipToDir(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for zip-slip entry, got nil")
 		}
-		if !strings.Contains(strings.ToLower(err.Error()), "zip slip") {
-			t.Errorf("error %q should mention zip slip", err.Error())
+		if !strings.Contains(err.Error(), "errUpdateZipSlip") {
+			t.Errorf("error %q should carry errUpdateZipSlip code", err.Error())
 		}
 
 		// The traversal target must not have been created.

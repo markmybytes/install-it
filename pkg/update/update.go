@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver"
+	"install-it/pkg/errcode"
 )
 
 type Updater struct {
@@ -67,27 +68,27 @@ func (u *Updater) CheckForUpdates(preferBundled, preferPreRelease bool) (*Update
 	if preferPreRelease {
 		resp, err := u.httpGet(u.releasesURL(false))
 		if err != nil {
-			return nil, err
+			return nil, errcode.New("errUpdateCheckFailed")
 		}
 		defer resp.Body.Close()
 
 		var releases []releasePayload
 		if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
-			return nil, err
+			return nil, errcode.New("errUpdateCheckFailed")
 		}
 		if len(releases) == 0 {
-			return nil, fmt.Errorf("no releases found")
+			return nil, errcode.New("errUpdateNoReleases")
 		}
 		body = releases[0]
 	} else {
 		resp, err := u.httpGet(u.releasesURL(true))
 		if err != nil {
-			return nil, err
+			return nil, errcode.New("errUpdateCheckFailed")
 		}
 		defer resp.Body.Close()
 
 		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-			return nil, err
+			return nil, errcode.New("errUpdateCheckFailed")
 		}
 	}
 
@@ -129,19 +130,19 @@ func (u *Updater) CheckForUpdates(preferBundled, preferPreRelease bool) (*Update
 func (u *Updater) TriggerNativeUpdate(downloadUrl string) error {
 	resp, err := http.Get(downloadUrl)
 	if err != nil {
-		return err
+		return errcode.New("errUpdateDownloadFailed")
 	}
 	defer resp.Body.Close()
 
 	tmpZip, err := os.CreateTemp(u.DirRoot, "update-*.zip")
 	if err != nil {
-		return err
+		return errcode.New("errUpdateWriteFailed")
 	}
 	defer os.Remove(tmpZip.Name())
 
 	if _, err := io.Copy(tmpZip, resp.Body); err != nil {
 		tmpZip.Close()
-		return err
+		return errcode.New("errUpdateWriteFailed")
 	}
 	tmpZip.Close()
 
@@ -157,19 +158,19 @@ func (u *Updater) TriggerNativeUpdate(downloadUrl string) error {
 
 	if err := os.Rename(exe, old); err != nil {
 		os.RemoveAll(stageDir)
-		return err
+		return errcode.New("errUpdateRenameFailed")
 	}
 	if err := os.Rename(newExe, exe); err != nil {
 		os.Rename(old, exe) // rollback
 		os.RemoveAll(stageDir)
-		return err
+		return errcode.New("errUpdateRenameFailed")
 	}
 
 	cmd := exec.Command(exe)
 	cmd.Dir = u.DirRoot
 	cmd.SysProcAttr = detachedProc()
 	if err := cmd.Start(); err != nil {
-		return err
+		return errcode.New("errUpdateSpawnFailed")
 	}
 
 	os.Remove(tmpZip.Name())
@@ -226,7 +227,7 @@ func (u *Updater) CheckAndApplyUpdates() {
 func extractZipToDir(zipPath, destDir string) error {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
-		return err
+		return errcode.New("errUpdateExtractFailed")
 	}
 	defer r.Close()
 
@@ -235,7 +236,7 @@ func extractZipToDir(zipPath, destDir string) error {
 	for _, f := range r.File {
 		target := filepath.Join(destDir, filepath.FromSlash(f.Name))
 		if !strings.HasPrefix(target, cleanDest) {
-			return fmt.Errorf("zip slip detected: %s", f.Name)
+			return errcode.Newf("errUpdateZipSlip", map[string]any{"entry": f.Name})
 		}
 
 		if f.FileInfo().IsDir() {
@@ -246,7 +247,7 @@ func extractZipToDir(zipPath, destDir string) error {
 		os.MkdirAll(filepath.Dir(target), os.ModePerm)
 		rc, err := f.Open()
 		if err != nil {
-			return err
+			return errcode.New("errUpdateExtractFailed")
 		}
 
 		if out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode()); err == nil {

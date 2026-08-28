@@ -51,18 +51,11 @@ function statusShortKey(status: string): string {
           <p
             v-else-if="
               props.process.result &&
-              props.process.result.error !== '' &&
-              !props.process.result.error.includes('exit status')
+              props.process.result.error !== ''
             "
             class="font-mono text-xs text-red-400"
           >
-            {{
-              props.process.result.error.includes('file does not exist') ||
-              props.process.result.error.includes('The system cannot find the file specified.') ||
-              props.process.result.error.includes('The system cannot find the path specified.')
-                ? $t('errFileNotFound')
-                : props.process.result.error.split(':').slice(1).join(':').trim()
-            }}
+            {{ $t(props.process.result.error) }}
           </p>
 
           <p v-else class="font-mono text-xs text-red-400">

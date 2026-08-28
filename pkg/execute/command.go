@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"time"
 
+	"install-it/pkg/errcode"
+
 	"github.com/saintfish/chardet"
 	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/net/html/charset"
@@ -47,21 +49,21 @@ func (t *Command) Stop() error {
 
 	proc, err := process.NewProcess(int32(t.cmd.Process.Pid))
 	if err != nil {
-		return err
+		return errcode.New("errExecuteAbortFailed")
 	}
 
 	if children, err := proc.Children(); err != nil {
-		return err
+		return errcode.New("errExecuteAbortFailed")
 	} else {
 		var errorChain error = nil
 		for _, p := range children {
 			if err = p.Kill(); err != nil {
-				errorChain = errors.Join(errorChain, err)
+				errorChain = errors.Join(errorChain, errcode.New("errExecuteAbortFailed"))
 			}
 		}
 
 		if err := proc.Kill(); err != nil {
-			errorChain = errors.Join(errorChain, err)
+			errorChain = errors.Join(errorChain, errcode.New("errExecuteAbortFailed"))
 		}
 
 		t.stopped = errorChain == nil
@@ -99,9 +101,9 @@ func (t Command) DecodeStdPipe(buff bytes.Buffer) (string, error) {
 		if encoding, _ := charset.Lookup(result.Charset); encoding != nil {
 			return encoding.NewDecoder().String(buff.String())
 		} else {
-			return "", err
+			return "", errcode.New("errExecuteDecodeFailed")
 		}
 	} else {
-		return "", err
+		return "", errcode.New("errExecuteDecodeFailed")
 	}
 }

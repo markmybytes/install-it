@@ -2,7 +2,6 @@ package porter
 
 import (
 	"archive/zip"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"install-it/pkg/errcode"
 )
 
 // dirSize calculates the total size of files in a directory and its subdirectories.
@@ -18,7 +19,7 @@ func dirSize(target string) (int64, error) {
 	var size int64
 	err := filepath.Walk(target, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return errcode.New("errExportSizeCalcFailed")
 		}
 		if !info.IsDir() {
 			size += info.Size()
@@ -38,7 +39,7 @@ func toZip(j *job, dest string, dirRoot string, targets []string) (err error) {
 	for _, dir := range targets {
 		size, err := dirSize(dir)
 		if err != nil {
-			return fmt.Errorf("porter: cannot calculate size of %s: %w", dir, err)
+			return errcode.Newf("errExportSizeCalcFailed", map[string]any{"dir": dir})
 		}
 		totalSize += size
 	}
@@ -48,7 +49,7 @@ func toZip(j *job, dest string, dirRoot string, targets []string) (err error) {
 
 	file, err := os.Create(zipPath)
 	if err != nil {
-		return fmt.Errorf("porter: cannot create zip file: %w", err)
+		return errcode.New("errExportZipCreateFailed")
 	}
 	defer func() {
 		file.Close()
@@ -69,7 +70,7 @@ func toZip(j *job, dest string, dirRoot string, targets []string) (err error) {
 	for _, dir := range targets {
 		err = filepath.Walk(dir, func(filePath string, info os.FileInfo, err error) error {
 			if j.ctx.Err() != nil {
-				return j.ctx.Err()
+				return errcode.New("errImportCanceled")
 			}
 			if err != nil {
 				return err
@@ -84,25 +85,25 @@ func toZip(j *job, dest string, dirRoot string, targets []string) (err error) {
 			// Compute relative path from dirRoot
 			rel, err := filepath.Rel(dirRoot, filePath)
 			if err != nil {
-				return fmt.Errorf("porter: cannot compute relative path: %w", err)
+				return errcode.New("errExportRelPathFailed")
 			}
 			// Normalize to forward slashes for ZIP
 			entryName := filepath.ToSlash(rel)
 
 			srcFile, err := os.Open(filePath)
 			if err != nil {
-				return fmt.Errorf("porter: cannot open source file %s: %w", filePath, err)
+				return errcode.Newf("errExportFileOpen", map[string]any{"file": filePath})
 			}
 
 			zipEntry, err := zw.Create(entryName)
 			if err != nil {
 				srcFile.Close()
-				return fmt.Errorf("porter: cannot create zip entry %s: %w", entryName, err)
+				return errcode.Newf("errExportEntryCreateFailed", map[string]any{"entry": entryName})
 			}
 
 			if _, err = io.Copy(zipEntry, srcFile); err != nil {
 				srcFile.Close()
-				return fmt.Errorf("porter: cannot write to zip entry %s: %w", entryName, err)
+				return errcode.Newf("errExportEntryWriteFailed", map[string]any{"entry": entryName})
 			}
 			srcFile.Close()
 
@@ -130,12 +131,12 @@ func fromZip(j *job, orig string, dest string, opts ImportOptions) (err error) {
 
 	zr, err := zip.OpenReader(orig)
 	if err != nil {
-		return fmt.Errorf("porter: cannot open archive: %w", err)
+		return errcode.New("errImportFileOpen")
 	}
 	defer zr.Close()
 
 	if err := os.MkdirAll(dest, os.ModePerm); err != nil {
-		return fmt.Errorf("porter: cannot create destination directory: %w", err)
+		return errcode.New("errImportMkdirFailed")
 	}
 
 	// Count total extractable bytes for progress tracking
@@ -171,18 +172,18 @@ func fromZip(j *job, orig string, dest string, opts ImportOptions) (err error) {
 	}
 
 	if totalBytes == 0 {
-		return fmt.Errorf("porter: no matching entries found in archive for the selected options")
+		return errcode.New("errImportNoMatchingEntries")
 	}
 
 	var extracted int64
 	extractAndWriteFile := func(zf *zip.File) error {
 		if j.ctx.Err() != nil {
-			return j.ctx.Err()
+			return errcode.New("errImportCanceled")
 		}
 
 		zfreader, err := zf.Open()
 		if err != nil {
-			return fmt.Errorf("porter: cannot open zip entry %s: %w", zf.Name, err)
+			return errcode.Newf("errImportEntryOpenFailed", map[string]any{"entry": zf.Name})
 		}
 		defer zfreader.Close()
 
@@ -193,7 +194,7 @@ func fromZip(j *job, orig string, dest string, opts ImportOptions) (err error) {
 		// ZipSlip protection
 		cleanDest := filepath.Clean(dest)
 		if !strings.HasPrefix(filepath.Clean(extractPath), cleanDest+string(os.PathSeparator)) && filepath.Clean(extractPath) != cleanDest {
-			return fmt.Errorf("porter: illegal file path: %s", extractPath)
+			return errcode.Newf("errImportIllegalPath", map[string]any{"path": extractPath})
 		}
 
 		j.msg(fmt.Sprintf("Extracting: %s", name))
@@ -203,18 +204,18 @@ func fromZip(j *job, orig string, dest string, opts ImportOptions) (err error) {
 		}
 
 		if err := os.MkdirAll(filepath.Dir(extractPath), os.ModePerm); err != nil {
-			return fmt.Errorf("porter: cannot create directory %s: %w", filepath.Dir(extractPath), err)
+			return errcode.Newf("errImportMkdirFailed", map[string]any{"dir": filepath.Dir(extractPath)})
 		}
 
 		outFile, err := os.OpenFile(extractPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, zf.Mode())
 		if err != nil {
-			return fmt.Errorf("porter: cannot create file %s: %w", extractPath, err)
+			return errcode.Newf("errImportFileCreateFailed", map[string]any{"file": extractPath})
 		}
 		defer outFile.Close()
 
 		_, err = io.Copy(outFile, zfreader)
 		if err != nil {
-			return fmt.Errorf("porter: error writing file %s: %w", extractPath, err)
+			return errcode.Newf("errImportFileWriteFailed", map[string]any{"file": extractPath})
 		}
 
 		extracted += zf.FileInfo().Size()
@@ -255,7 +256,7 @@ func backup(j *job, dirRoot string, files []string, dirs []string) (timestamp st
 			}
 			if rollbackErr != nil {
 				// Leave backup dir in place for manual recovery
-				err = fmt.Errorf("porter: %w (rollback failed: %v, backup at %s)", err, rollbackErr, backupDir)
+				err = errcode.Newf("errImportBackupRollbackFailed", map[string]any{"error": rollbackErr, "backupDir": backupDir})
 				return
 			}
 			os.RemoveAll(backupDir)
@@ -269,11 +270,11 @@ func backup(j *job, dirRoot string, files []string, dirs []string) (timestamp st
 		}
 		backupPath := filepath.Join(backupDir, item)
 		if err := os.MkdirAll(filepath.Dir(backupPath), os.ModePerm); err != nil {
-			return timestamp, fmt.Errorf("porter: cannot create backup directory: %w", err)
+			return timestamp, errcode.New("errImportBackupMkdirFailed")
 		}
 		j.msg(fmt.Sprintf("Backing up: %s", original))
 		if err := os.Rename(original, backupPath); err != nil {
-			return timestamp, fmt.Errorf("porter: cannot backup %s → %s: %w", original, backupPath, err)
+			return timestamp, errcode.Newf("errImportBackupFailed", map[string]any{"from": original, "to": backupPath})
 		}
 		moved = append(moved, item)
 	}
@@ -305,13 +306,13 @@ func rollback(j *job, dirRoot string, timestamp string, files []string, dirs []s
 		original := filepath.Join(dirRoot, d)
 		if _, statErr := os.Stat(original); statErr == nil {
 			if err := os.RemoveAll(original); err != nil {
-				errs = append(errs, fmt.Errorf("porter: rollback: cannot remove %s: %w", original, err))
+				errs = append(errs, errcode.Newf("errImportRollbackRemoveFailed", map[string]any{"path": original}))
 			}
 		}
 		backupPath := filepath.Join(backupDir, d)
 		if _, statErr := os.Stat(backupPath); statErr == nil {
 			if err := os.Rename(backupPath, original); err != nil {
-				errs = append(errs, fmt.Errorf("porter: rollback: cannot rename %s → %s: %w", backupPath, original, err))
+				errs = append(errs, errcode.Newf("errImportRollbackRenameFailed", map[string]any{"from": backupPath, "to": original}))
 			}
 		}
 	}
@@ -320,25 +321,28 @@ func rollback(j *job, dirRoot string, timestamp string, files []string, dirs []s
 		original := filepath.Join(dirRoot, f)
 		if _, statErr := os.Stat(original); statErr == nil {
 			if err := os.Remove(original); err != nil {
-				errs = append(errs, fmt.Errorf("porter: rollback: cannot remove %s: %w", original, err))
+				errs = append(errs, errcode.Newf("errImportRollbackRemoveFailed", map[string]any{"path": original}))
 			}
 		}
 		backupPath := filepath.Join(backupDir, f)
 		if _, statErr := os.Stat(backupPath); statErr == nil {
 			if err := os.MkdirAll(filepath.Dir(original), os.ModePerm); err != nil {
-				errs = append(errs, fmt.Errorf("porter: rollback: cannot create directory for %s: %w", original, err))
+				errs = append(errs, errcode.Newf("errImportRollbackMkdirFailed", map[string]any{"path": original}))
 			}
 			if err := os.Rename(backupPath, original); err != nil {
-				errs = append(errs, fmt.Errorf("porter: rollback: cannot rename %s → %s: %w", backupPath, original, err))
+				errs = append(errs, errcode.Newf("errImportRollbackRenameFailed", map[string]any{"from": backupPath, "to": original}))
 			}
 		}
 	}
 
 	if len(errs) > 0 {
-		return errors.Join(errs...)
+		return errcode.New("errImportRollbackFailed")
 	}
 
-	return os.RemoveAll(backupDir)
+	if err := os.RemoveAll(backupDir); err != nil {
+		return errcode.New("errImportRollbackFailed")
+	}
+	return nil
 }
 
 // download fetches a ZIP from a URL to a temp file, reporting progress via the job.
@@ -348,22 +352,22 @@ func download(j *job, url string) (path string, err error) {
 
 	req, err := http.NewRequestWithContext(j.ctx, "GET", url, nil)
 	if err != nil {
-		return "", fmt.Errorf("porter: cannot create request: %w", err)
+		return "", errcode.New("errImportDownloadRequestFailed")
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("porter: download failed: %w", err)
+		return "", errcode.New("errImportDownloadFailed")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("porter: download returned status %d", resp.StatusCode)
+		return "", errcode.Newf("errImportDownloadStatus", map[string]any{"status": resp.StatusCode})
 	}
 
 	tmpFile, err := os.CreateTemp("", "*.zip")
 	if err != nil {
-		return "", fmt.Errorf("porter: cannot create temp file: %w", err)
+		return "", errcode.New("errImportTempFileFailed")
 	}
 
 	var total int64
@@ -381,7 +385,7 @@ func download(j *job, url string) (path string, err error) {
 	if err != nil {
 		tmpFile.Close()
 		os.Remove(tmpFile.Name())
-		return "", fmt.Errorf("porter: download interrupted: %w", err)
+		return "", errcode.New("errImportDownloadInterrupted")
 	}
 	tmpFile.Close()
 
@@ -391,7 +395,7 @@ func download(j *job, url string) (path string, err error) {
 
 	absPath, err := filepath.Abs(tmpFile.Name())
 	if err != nil {
-		return "", fmt.Errorf("porter: cannot resolve temp file path: %w", err)
+		return "", errcode.New("errImportTempPathFailed")
 	}
 
 	j.msg(fmt.Sprintf("Downloaded %d bytes to %s", written, absPath))

@@ -1,6 +1,10 @@
 <script setup lang="ts">
 // import { storage } from '@/wailsjs/go/models'
 import * as ruleSetStorage from '@/wailsjs/go/storage/RuleSetStorage'
+import { useI18n } from 'vue-i18n'
+import { decodeError } from '@/utils/index'
+
+const { t } = useI18n()
 
 const toast = useToast()
 
@@ -55,14 +59,15 @@ function opKey(suffix: string): string {
               class="h-6"
               :title="$t('clone')"
               @click="
-                ruleSetStorage.Clone(rs.id).then(() =>
-                  ruleSetStorage
-                    .All()
-                    .then(rs => (ruleStore.ruleSets = rs))
-                    .catch(() => {
-                      toast.add({ title: $t('toastReadDriversFailed'), color: 'error' })
-                    })
-                )
+                ruleSetStorage
+                  .Clone(rs.id)
+                  .then(() =>
+                    ruleSetStorage
+                      .All()
+                      .then(rs => (ruleStore.ruleSets = rs))
+                      .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
+                  )
+                  .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
               "
             >
               <Icon icon="mdi:content-duplicate" class="text-gray-500" />
@@ -75,14 +80,15 @@ function opKey(suffix: string): string {
               class="h-6"
               :title="$t('delete')"
               @click="
-                ruleSetStorage.Remove(rs.id).then(() =>
-                  ruleSetStorage
-                    .All()
-                    .then(rs => (ruleStore.ruleSets = rs))
-                    .catch(() => {
-                      toast.add({ title: $t('toastReadDriversFailed'), color: 'error' })
-                    })
-                )
+                ruleSetStorage
+                  .Remove(rs.id)
+                  .then(() =>
+                    ruleSetStorage
+                      .All()
+                      .then(rs => (ruleStore.ruleSets = rs))
+                      .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
+                  )
+                  .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
               "
             >
               <Icon icon="mdi:trash-can" class="text-gray-500" />

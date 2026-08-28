@@ -3,6 +3,7 @@ import type { Command, Process } from '@/types/execute'
 import * as executor from '@/wailsjs/go/execute/CommandExecutor'
 import { status } from '@/wailsjs/go/models'
 import * as runtime from '@/wailsjs/runtime/runtime'
+import { decodeError } from '@/utils/index'
 import AsyncLock from 'async-lock'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -37,7 +38,12 @@ const processes = ref<Array<Process>>([])
 
 runtime.EventsOn('execute:exited', async (id: string, result: NonNullable<Process['result']>) => {
   const process = processes.value.find(c => c.procId === id)!
-  process.result = result
+  // The event payload's Error field is now a stable i18n code (e.g. errExecuteIdNotFound);
+  // localize it before storing so downstream display never shows the raw code.
+  process.result = {
+    ...result,
+    error: result.error ? decodeError({ code: result.error }, t) : result.error
+  }
 
   if (result.aborted) {
     process.status = status.Status.ABORTED
@@ -52,9 +58,9 @@ runtime.EventsOn('execute:exited', async (id: string, result: NonNullable<Proces
   dispatchCommand().then(() => {
     if (processes.value.every(c => c.status === 'completed')) {
       emit('completed')
-      toast.add({ title: t('toastFinished'), color: 'success' })
+      toast.add({ title: t('msgFinished'), color: 'success' })
     } else if (processes.value.every(c => !c.status.includes('ing'))) {
-      toast.add({ title: t('toastFinished'), color: 'info' })
+      toast.add({ title: t('msgFinished'), color: 'info' })
     }
   })
 })
@@ -93,7 +99,7 @@ async function dispatchCommand() {
             exitCode: -1,
             stdout: '',
             stderr: '',
-            error: (error as Error).toString(),
+            error: decodeError(error, t),
             aborted: false
           }
         })
@@ -118,31 +124,13 @@ async function handleAbort(process: Process) {
 
       // `aborted` status will be updated at `execute:exited` event handler
       executor.Abort(process.procId!).catch(error => {
-        if (error.includes('process does not exist')) {
-          toast.add({
-            title: t('toastCancelCompletedFailed', {
-              name: getProcessName(process)
-            }),
-            color: 'warning'
-          })
+        const code = (error as { code?: string })?.code ?? ''
+        if (code === 'errExecuteIdNotFound') {
+          toast.add({ title: decodeError(error, t), color: 'warning' })
           return
         }
 
-        error
-          .toString()
-          .split('\n')
-          .forEach((err: string) => {
-            if (err.includes('abort failed')) {
-              toast.add({
-                title: t('toastCancelFailed', {
-                  name: getProcessName(process)
-                }),
-                color: 'warning'
-              })
-            } else {
-              toast.add({ title: `[${getProcessName(process)}] ${err}`, color: 'error' })
-            }
-          })
+        toast.add({ title: `[${getProcessName(process)}] ${decodeError(error, t)}`, color: 'error' })
 
         process.status = status.Status.ERRORED
         process.result = {
@@ -150,7 +138,7 @@ async function handleAbort(process: Process) {
           exitCode: -1,
           stdout: '',
           stderr: '',
-          error: error.toString(),
+          error: decodeError(error, t),
           aborted: false
         }
       })
@@ -183,7 +171,7 @@ async function handleAbort(process: Process) {
           @click="
             (event: MouseEvent) => {
               $emit('completed')
-              toast.add({ title: t('toastFinished'), color: 'success' })
+              toast.add({ title: t('msgFinished'), color: 'success' })
 
               // @ts-ignore
               event.currentTarget?.remove()

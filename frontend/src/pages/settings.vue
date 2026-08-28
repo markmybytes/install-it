@@ -3,6 +3,7 @@ import { storage } from '@/wailsjs/go/models'
 import * as appSettingStorage from '@/wailsjs/go/storage/AppSettingStorage'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { decodeError } from '@/utils/index'
 
 const { t, locale } = useI18n()
 const toast = useToast()
@@ -45,11 +46,9 @@ function handleSubmit() {
     })
     .then(() => {
       locale.value = settings.value.language
-      toast.add({ title: t('toastSaved'), color: 'success' })
+      toast.add({ title: t('msgSaved'), color: 'success' })
     })
-    .catch(() => {
-      toast.add({ title: t('toastSaveFailed'), color: 'error' })
-    })
+    .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
 }
 </script>
 
@@ -302,6 +301,28 @@ function handleSubmit() {
                 />
 
                 <span>{{ $t('settingEnableCPUTemp') }}</span>
+
+                <UPopover mode="hover">
+                  <button
+                    type="button"
+                    class="ms-1.5 inline-flex cursor-pointer items-center justify-center text-gray-400 hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                    :aria-label="$t('cpuTempPopoverTitle')"
+                  >
+                    <UIcon name="i-lucide-info" class="size-4" />
+                  </button>
+
+                  <template #content>
+                    <div class="space-y-1.5 p-3 text-xs max-w-xs">
+                      <p class="font-semibold text-gray-900 dark:text-gray-100">
+                        {{ $t('cpuTempPopoverTitle') }}
+                      </p>
+
+                      <p class="text-gray-600 dark:text-gray-400 leading-relaxed">
+                        {{ $t('cpuTempPopoverBody') }}
+                      </p>
+                    </div>
+                  </template>
+                </UPopover>
               </label>
 
               <p class="text-xs text-gray-500">{{ $t('settingCPUTempRestartHint') }}</p>

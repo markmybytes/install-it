@@ -9,6 +9,7 @@ import {
 } from '@/wailsjs/go/main/App'
 import { CheckForUpdates } from '@/wailsjs/go/update/Updater'
 import { BrowserOpenURL, Environment } from '@/wailsjs/runtime/runtime'
+import { decodeError } from '@/utils/index'
 import { Icon } from '@iconify/vue'
 import { onBeforeMount, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -49,26 +50,38 @@ onBeforeMount(() => {
   ]).then(([ver, env, pdri, vwv2, pwv2, hasInternals]) => {
     if (ver.status !== 'rejected') {
       info.value.app.version = ver.value
+    } else {
+      toast.add({ title: decodeError(ver.reason, t), color: 'error' })
     }
 
     if (env.status !== 'rejected') {
       info.value.app.buildType = env.value.buildType
+    } else {
+      toast.add({ title: decodeError(env.reason, t), color: 'error' })
     }
 
     if (pdri.status !== 'rejected') {
       info.value.app.pathDriver = pdri.value
+    } else {
+      toast.add({ title: decodeError(pdri.reason, t), color: 'error' })
     }
 
     if (vwv2.status !== 'rejected') {
       info.value.webview.version = vwv2.value
+    } else {
+      toast.add({ title: decodeError(vwv2.reason, t), color: 'error' })
     }
 
     if (pwv2.status !== 'rejected') {
       info.value.webview.location = pwv2.value
+    } else {
+      toast.add({ title: decodeError(pwv2.reason, t), color: 'error' })
     }
 
     if (hasInternals.status !== 'rejected') {
       preferBundled.value = hasInternals.value
+    } else {
+      toast.add({ title: decodeError(hasInternals.reason, t), color: 'error' })
     }
   })
 })
@@ -79,7 +92,7 @@ function buildTypeKey(suffix: string): string {
 
 function checkUpdate() {
   if (Object.values(info.value.app).some(v => v === 'na')) {
-    toast.add({ title: t('toastCheckUpdateFailed'), color: 'error' })
+    toast.add({ title: t('errCheckUpdateFailed'), color: 'error' })
     return
   }
 
@@ -91,11 +104,11 @@ function checkUpdate() {
       if (result.hasUpdate) {
         modal.value?.show(result)
       } else {
-        toast.add({ title: t('toastNoUpdate'), color: 'info' })
+        toast.add({ title: t('msgNoUpdate'), color: 'info' })
       }
     })
-    .catch(reason => {
-      toast.add({ title: reason, color: 'error' })
+    .catch(err => {
+      toast.add({ title: decodeError(err, t), color: 'error' })
     })
     .finally(() => {
       onCheck.value = false

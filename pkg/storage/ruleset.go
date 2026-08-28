@@ -2,9 +2,10 @@ package storage
 
 import (
 	"errors"
-	"fmt"
 
 	"gorm.io/gorm"
+
+	"install-it/pkg/errcode"
 )
 
 type RuleSource string
@@ -63,7 +64,7 @@ func NewRuleSetStorage(db *Database) *RuleSetStorage {
 func (s *RuleSetStorage) All() ([]RuleSet, error) {
 	var ruleSets []*RuleSet
 	if err := s.db.DB().Preload("DriverGroups").Find(&ruleSets).Error; err != nil {
-		return nil, err
+		return nil, errcode.New("errStorageReadFailed")
 	}
 	result := make([]RuleSet, len(ruleSets))
 	for i, rs := range ruleSets {
@@ -77,9 +78,9 @@ func (s *RuleSetStorage) Get(id uint) (RuleSet, error) {
 	var rs RuleSet
 	if err := s.db.DB().Preload("DriverGroups").First(&rs, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return RuleSet{}, fmt.Errorf("rule set: %w", ErrNotFound)
+			return RuleSet{}, errcode.New("errStorageNotFound")
 		}
-		return RuleSet{}, err
+		return RuleSet{}, errcode.New("errStorageReadFailed")
 	}
 	populateDriverGroupIds(&rs)
 	return rs, nil
@@ -88,17 +89,22 @@ func (s *RuleSetStorage) Get(id uint) (RuleSet, error) {
 func (s *RuleSetStorage) Add(ruleSet RuleSet) error {
 	return s.db.DB().Transaction(func(tx *gorm.DB) error {
 		ruleSet.DriverGroups = idsToDriverGroups(ruleSet.DriverGroupIds)
-		return tx.Omit("DriverGroups.*").Create(&ruleSet).Error
+		if err := tx.Omit("DriverGroups.*").Create(&ruleSet).Error; err != nil {
+			return errcode.New("errStorageWriteFailed")
+		}
+		return nil
 	})
 }
 
 func (s *RuleSetStorage) Update(ruleSet RuleSet) error {
 	return s.db.DB().Transaction(func(tx *gorm.DB) error {
 		if err := tx.Omit("DriverGroups").Save(&ruleSet).Error; err != nil {
-			return err
+			return errcode.New("errStorageWriteFailed")
 		}
-		groups := idsToDriverGroups(ruleSet.DriverGroupIds)
-		return tx.Model(&ruleSet).Association("DriverGroups").Replace(groups)
+		if err := tx.Model(&ruleSet).Association("DriverGroups").Replace(idsToDriverGroups(ruleSet.DriverGroupIds)); err != nil {
+			return errcode.New("errStorageWriteFailed")
+		}
+		return nil
 	})
 }
 
@@ -106,10 +112,10 @@ func (s *RuleSetStorage) Remove(id uint) error {
 	return s.db.DB().Transaction(func(tx *gorm.DB) error {
 		result := tx.Delete(&RuleSet{}, id)
 		if result.Error != nil {
-			return result.Error
+			return errcode.New("errStorageWriteFailed")
 		}
 		if result.RowsAffected == 0 {
-			return ErrNotFound
+			return errcode.New("errStorageNotFound")
 		}
 		return nil
 	})
@@ -120,9 +126,9 @@ func (s *RuleSetStorage) Clone(id uint) error {
 		var original RuleSet
 		if err := tx.Preload("DriverGroups").First(&original, id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("rule set: %w", ErrNotFound)
+				return errcode.New("errStorageNotFound")
 			}
-			return err
+			return errcode.New("errStorageReadFailed")
 		}
 
 		newRS := RuleSet{
@@ -131,7 +137,10 @@ func (s *RuleSetStorage) Clone(id uint) error {
 			ShouldHitAll: original.ShouldHitAll,
 			DriverGroups: original.DriverGroups,
 		}
-		return tx.Omit("DriverGroups.*").Create(&newRS).Error
+		if err := tx.Omit("DriverGroups.*").Create(&newRS).Error; err != nil {
+			return errcode.New("errStorageWriteFailed")
+		}
+		return nil
 	})
 }
 

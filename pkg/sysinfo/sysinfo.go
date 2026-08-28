@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 
 	"install-it/pkg/cputemp"
+	"install-it/pkg/errcode"
 )
 
 // ResolvedHardware holds all resolved hardware names in a single struct
@@ -138,14 +139,14 @@ func (i SysInfo) OSInfo() (*OSInfo, error) {
 // IOCTL read only, no WMI queries.
 func (i SysInfo) CPUTemperature() (float64, error) {
 	if !cputemp.IsAvailable() {
-		return 0, fmt.Errorf("cpu temperature unavailable")
+		return 0, errcode.New("warnCPUTempUnavailable")
 	}
 	temps, err := cputemp.GetCPUTemperatures()
 	if err != nil {
-		return 0, err
+		return 0, errcode.New("warnCPUTempReadFailed")
 	}
 	if len(temps) == 0 {
-		return 0, fmt.Errorf("no cpu temperature readings")
+		return 0, errcode.New("warnCPUTempNoReadings")
 	}
 	var max float64
 	for _, t := range temps {

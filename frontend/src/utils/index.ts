@@ -80,3 +80,26 @@ export function testMatchRule(rule: storage.Rule, input: string) {
 
   return rule.should_hit_all ? hits.every(Boolean) : hits.some(Boolean)
 }
+
+/**
+ * Resolve a backend error (or plain string during migration) into a localized message.
+ * The Wails rejection shape is `{code: string, params?: Record<string, unknown>}`;
+ * anything else (string, null, undefined, native Error) falls back to the raw form.
+ *
+ * Pure function — no Vue reactivity, callable anywhere (setup, watchers, tests).
+ * `t` is the caller's vue-i18n translation function.
+ */
+export function decodeError(
+  err: unknown,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string {
+  const { code, params } = extractCode(err)
+  return params ? t(code, params) : t(code)
+}
+
+function extractCode(err: unknown): { code: string; params?: Record<string, unknown> } {
+  if (err && typeof err === 'object' && 'code' in err) {
+    return err as { code: string; params?: Record<string, unknown> }
+  }
+  return { code: String(err) }
+}

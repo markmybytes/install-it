@@ -86,7 +86,7 @@ const codeStrings = computed({
 
 function handleDone() {
   if (!driver.value.path?.trim()) {
-    toast.add({ title: t('toastPathRequired'), color: 'warning' })
+    toast.add({ title: t('warnPathRequired'), color: 'warning' })
     return
   }
 

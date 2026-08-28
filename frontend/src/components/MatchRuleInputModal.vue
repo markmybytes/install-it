@@ -63,7 +63,7 @@ const operatorItems = computed(() =>
         @submit.prevent="
           () => {
             if (input.values.length == 0) {
-              toast.add({ title: t('toastAddPatternRequired'), color: 'warning' })
+              toast.add({ title: t('warnAddPatternRequired'), color: 'warning' })
             } else {
               $emit('submit', input)
               isOpen = false

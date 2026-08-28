@@ -2,9 +2,10 @@ package storage
 
 import (
 	"errors"
-	"fmt"
 
 	"gorm.io/gorm"
+
+	"install-it/pkg/errcode"
 )
 
 type DriverType string
@@ -55,7 +56,7 @@ func NewDriverGroupStorage(db *Database) *DriverGroupStorage {
 func (s *DriverGroupStorage) All() ([]DriverGroup, error) {
 	var groups []*DriverGroup
 	if err := s.db.DB().Preload("Drivers.Incompatibles").Order("position").Find(&groups).Error; err != nil {
-		return nil, err
+		return nil, errcode.New("errStorageReadFailed")
 	}
 	result := make([]DriverGroup, len(groups))
 	for i, g := range groups {
@@ -71,9 +72,9 @@ func (s *DriverGroupStorage) Get(id uint) (DriverGroup, error) {
 	var group DriverGroup
 	if err := s.db.DB().Preload("Drivers.Incompatibles").First(&group, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return DriverGroup{}, fmt.Errorf("driver group: %w", ErrNotFound)
+			return DriverGroup{}, errcode.New("errStorageNotFound")
 		}
-		return DriverGroup{}, err
+		return DriverGroup{}, errcode.New("errStorageReadFailed")
 	}
 	for _, d := range group.Drivers {
 		populateIncompatibleIds(d)
@@ -86,7 +87,10 @@ func (s *DriverGroupStorage) Add(group DriverGroup) error {
 		var maxPos int
 		tx.Model(&DriverGroup{}).Select("COALESCE(MAX(position), -1)").Scan(&maxPos)
 		group.Position = maxPos + 1
-		return tx.Create(&group).Error
+		if err := tx.Create(&group).Error; err != nil {
+			return errcode.New("errStorageWriteFailed")
+		}
+		return nil
 	})
 }
 
@@ -94,7 +98,7 @@ func (s *DriverGroupStorage) Update(group DriverGroup) error {
 	return s.db.DB().Transaction(func(tx *gorm.DB) error {
 		var existing []*Driver
 		if err := tx.Where("group_id = ?", group.Id).Find(&existing).Error; err != nil {
-			return err
+			return errcode.New("errStorageReadFailed")
 		}
 
 		newDriverIds := make(map[uint]bool)
@@ -113,7 +117,7 @@ func (s *DriverGroupStorage) Update(group DriverGroup) error {
 
 		if len(deletedIds) > 0 {
 			if err := tx.Delete(&Driver{}, "id IN ?", deletedIds).Error; err != nil {
-				return err
+				return errcode.New("errStorageWriteFailed")
 			}
 		}
 
@@ -122,18 +126,18 @@ func (s *DriverGroupStorage) Update(group DriverGroup) error {
 			"type":               group.Type,
 			"mutually_exclusive": group.MutuallyExclusive,
 		}).Error; err != nil {
-			return err
+			return errcode.New("errStorageWriteFailed")
 		}
 
 		for _, d := range group.Drivers {
 			d.GroupId = group.Id
 			if d.Id == 0 {
 				if err := tx.Omit("Incompatibles").Create(d).Error; err != nil {
-					return err
+					return errcode.New("errStorageWriteFailed")
 				}
 			} else {
 				if err := tx.Omit("Incompatibles").Save(d).Error; err != nil {
-					return err
+					return errcode.New("errStorageWriteFailed")
 				}
 			}
 			incompats := make([]*Driver, len(d.IncompatibleIds))
@@ -141,7 +145,7 @@ func (s *DriverGroupStorage) Update(group DriverGroup) error {
 				incompats[i] = &Driver{Id: iid}
 			}
 			if err := tx.Model(d).Association("Incompatibles").Replace(incompats); err != nil {
-				return err
+				return errcode.New("errStorageWriteFailed")
 			}
 		}
 
@@ -153,10 +157,10 @@ func (s *DriverGroupStorage) Remove(id uint) error {
 	return s.db.DB().Transaction(func(tx *gorm.DB) error {
 		result := tx.Delete(&DriverGroup{}, id)
 		if result.Error != nil {
-			return result.Error
+			return errcode.New("errStorageWriteFailed")
 		}
 		if result.RowsAffected == 0 {
-			return ErrNotFound
+			return errcode.New("errStorageNotFound")
 		}
 		return nil
 	})
@@ -167,9 +171,9 @@ func (s *DriverGroupStorage) Clone(id uint) error {
 		var original DriverGroup
 		if err := tx.Preload("Drivers.Incompatibles").First(&original, id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("driver group: %w", ErrNotFound)
+				return errcode.New("errStorageNotFound")
 			}
-			return err
+			return errcode.New("errStorageReadFailed")
 		}
 
 		var maxPos int
@@ -182,7 +186,7 @@ func (s *DriverGroupStorage) Clone(id uint) error {
 			Position:          maxPos + 1,
 		}
 		if err := tx.Omit("Drivers").Create(&newGroup).Error; err != nil {
-			return err
+			return errcode.New("errStorageWriteFailed")
 		}
 
 		oldToNew := make(map[uint]*Driver, len(original.Drivers))
@@ -197,7 +201,7 @@ func (s *DriverGroupStorage) Clone(id uint) error {
 				AllowRtCodes: d.AllowRtCodes,
 			}
 			if err := tx.Create(newDriver).Error; err != nil {
-				return err
+				return errcode.New("errStorageWriteFailed")
 			}
 			oldToNew[d.Id] = newDriver
 		}
@@ -215,7 +219,7 @@ func (s *DriverGroupStorage) Clone(id uint) error {
 			}
 			if len(newIncompats) > 0 {
 				if err := tx.Model(newDriver).Association("Incompatibles").Replace(newIncompats); err != nil {
-					return err
+					return errcode.New("errStorageWriteFailed")
 				}
 			}
 		}
@@ -228,7 +232,7 @@ func (s *DriverGroupStorage) MoveBehind(id uint, index int) error {
 	return s.db.DB().Transaction(func(tx *gorm.DB) error {
 		var srcPos int
 		if err := tx.Model(&DriverGroup{}).Select("position").Where("id = ?", id).Scan(&srcPos).Error; err != nil {
-			return err
+			return errcode.New("errStorageReadFailed")
 		}
 
 		destPos := index + 1
@@ -241,16 +245,19 @@ func (s *DriverGroupStorage) MoveBehind(id uint, index int) error {
 			if err := tx.Model(&DriverGroup{}).
 				Where("position > ? AND position <= ?", srcPos, destPos).
 				UpdateColumn("position", gorm.Expr("position - 1")).Error; err != nil {
-				return err
+				return errcode.New("errStorageWriteFailed")
 			}
 		} else {
 			if err := tx.Model(&DriverGroup{}).
 				Where("position >= ? AND position < ?", destPos, srcPos).
 				UpdateColumn("position", gorm.Expr("position + 1")).Error; err != nil {
-				return err
+				return errcode.New("errStorageWriteFailed")
 			}
 		}
 
-		return tx.Model(&DriverGroup{}).Where("id = ?", id).UpdateColumn("position", destPos).Error
+		if err := tx.Model(&DriverGroup{}).Where("id = ?", id).UpdateColumn("position", destPos).Error; err != nil {
+			return errcode.New("errStorageWriteFailed")
+		}
+		return nil
 	})
 }

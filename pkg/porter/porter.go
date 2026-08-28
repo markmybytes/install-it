@@ -2,8 +2,8 @@ package porter
 
 import (
 	"archive/zip"
-	"errors"
 	"fmt"
+	"install-it/pkg/errcode"
 	"install-it/pkg/status"
 	"os"
 	"path/filepath"
@@ -52,12 +52,12 @@ func (p *Porter) Status() status.Status {
 
 func (p *Porter) Abort() error {
 	if p.job == nil {
-		return errors.New("porter: no running porting job")
+		return errcode.New("errImportNoRunningJob")
 	}
 	p.job.mu.Lock()
 	defer p.job.mu.Unlock()
 	if p.job.status != status.Running {
-		return errors.New("porter: no running porting job")
+		return errcode.New("errImportNoRunningJob")
 	}
 	p.job.cancel()
 	return nil
@@ -65,14 +65,14 @@ func (p *Porter) Abort() error {
 
 func (p *Porter) Progress() (JobSnapshot, error) {
 	if p.job == nil {
-		return JobSnapshot{}, errors.New("porter: no started job")
+		return JobSnapshot{}, errcode.New("errImportNoStartedJob")
 	}
 	return p.job.snapshot(), nil
 }
 
 func (p *Porter) Export(dest string) (err error) {
 	if p.job != nil && p.job.status == status.Running {
-		return errors.New("porter: job already running")
+		return errcode.New("errImportAlreadyRunning")
 	}
 
 	p.job = newJob()
@@ -92,7 +92,7 @@ func (p *Porter) Export(dest string) (err error) {
 func (p *Porter) ValidateZip(path string) (ImportPreview, error) {
 	zr, err := zip.OpenReader(path)
 	if err != nil {
-		return ImportPreview{}, fmt.Errorf("porter: cannot open zip: %w", err)
+		return ImportPreview{}, errcode.New("errImportFileOpen")
 	}
 	defer zr.Close()
 
@@ -102,7 +102,7 @@ func (p *Porter) ValidateZip(path string) (ImportPreview, error) {
 	}
 
 	if m.FormatVersion != CurrentFormatVersion {
-		return ImportPreview{}, fmt.Errorf("porter: unsupported archive format version %d (expected %d)", m.FormatVersion, CurrentFormatVersion)
+		return ImportPreview{}, errcode.Newf("errImportVersionUnsupported", map[string]any{"version": m.FormatVersion, "expected": CurrentFormatVersion})
 	}
 
 	preview := ImportPreview{
@@ -131,7 +131,7 @@ func (p *Porter) ValidateZip(path string) (ImportPreview, error) {
 	preview.HasData = preview.HasDatabase || preview.HasDrivers
 
 	if !preview.HasSettings && !preview.HasData {
-		return ImportPreview{}, fmt.Errorf("porter: no install-it data found in archive")
+		return ImportPreview{}, errcode.New("errImportNoData")
 	}
 
 	return preview, nil
@@ -145,7 +145,7 @@ func (p *Porter) ValidateZip(path string) (ImportPreview, error) {
 // (previous temp file is removed).
 func (p *Porter) DownloadAndValidate(url string) (preview ImportPreview, err error) {
 	if p.job != nil && p.job.status == status.Running {
-		return ImportPreview{}, errors.New("porter: job already running")
+		return ImportPreview{}, errcode.New("errImportAlreadyRunning")
 	}
 	p.job = newJob()
 	p.job.start()
@@ -160,7 +160,7 @@ func (p *Porter) DownloadAndValidate(url string) (preview ImportPreview, err err
 
 	path, err := download(p.job, url)
 	if err != nil {
-		return ImportPreview{}, err
+		return ImportPreview{}, errcode.New("errImportDownloadFailed")
 	}
 
 	p.tempPath = path
@@ -179,7 +179,7 @@ func (p *Porter) DownloadAndValidate(url string) (preview ImportPreview, err err
 // Backs up existing files first; rolls back on extraction failure.
 func (p *Porter) ImportFromFile(path string, opts ImportOptions) (err error) {
 	if p.job != nil && p.job.status == status.Running {
-		return errors.New("porter: job already running")
+		return errcode.New("errImportAlreadyRunning")
 	}
 	p.job = newJob()
 	p.job.start()
@@ -193,9 +193,7 @@ func (p *Porter) ImportFromFile(path string, opts ImportOptions) (err error) {
 		if dbClosed && p.OnAfterImport != nil {
 			if reopenErr := p.OnAfterImport(); reopenErr != nil {
 				if err == nil {
-					err = fmt.Errorf("porter: import succeeded but failed to reopen database: %w", reopenErr)
-				} else {
-					err = fmt.Errorf("porter: %w (additionally, failed to reopen database: %v)", err, reopenErr)
+					err = errcode.New("errImportDbReopenFailed")
 				}
 			}
 		}
@@ -220,7 +218,7 @@ func (p *Porter) ImportFromFile(path string, opts ImportOptions) (err error) {
 
 	if opts.Data {
 		if !preview.HasData {
-			err := fmt.Errorf("porter: selected categories not found in archive")
+			err := errcode.New("errImportNoCategories")
 			p.job.fail(err)
 			return err
 		}
@@ -236,14 +234,14 @@ func (p *Porter) ImportFromFile(path string, opts ImportOptions) (err error) {
 		}
 	} else {
 		if !opts.Settings || !preview.HasSettings {
-			err := fmt.Errorf("porter: nothing to import — no categories selected")
+			err := errcode.New("errNoCategoriesSelected")
 			p.job.fail(err)
 			return err
 		}
 	}
 
 	if len(backupFiles) == 0 && len(backupDirs) == 0 {
-		err := fmt.Errorf("porter: nothing to backup or import — selected items do not exist on disk or in archive")
+		err := errcode.New("errImportNothingToImport")
 		p.job.fail(err)
 		return err
 	}
@@ -259,7 +257,7 @@ func (p *Porter) ImportFromFile(path string, opts ImportOptions) (err error) {
 		p.job.msg("Closing database for backup...")
 		if err := p.OnBeforeBackup(); err != nil {
 			p.job.fail(err)
-			return fmt.Errorf("porter: error closing database: %w", err)
+			return errcode.New("errImportDbCloseFailed")
 		}
 	}
 
@@ -277,7 +275,7 @@ func (p *Porter) ImportFromFile(path string, opts ImportOptions) (err error) {
 		rollbackErr := rollback(p.job, p.DirRoot, timestamp, backupFiles, backupDirs)
 		p.job.fail(err)
 		if rollbackErr != nil {
-			return fmt.Errorf("porter: %w (rollback: %v)", err, rollbackErr)
+			return errcode.Newf("errImportRollbackFailed", map[string]any{"error": rollbackErr})
 		}
 		return err
 	}
@@ -296,7 +294,7 @@ func (p *Porter) ImportFromFile(path string, opts ImportOptions) (err error) {
 // import (success or failure).
 func (p *Porter) ImportFromURL(opts ImportOptions) error {
 	if p.tempPath == "" {
-		return fmt.Errorf("porter: no downloaded file")
+		return errcode.New("errImportNoDownloadedFile")
 	}
 	path := p.tempPath
 
@@ -319,7 +317,7 @@ func (p *Porter) RecoverOrphanedBackups() error {
 			}
 			rel, err := filepath.Rel(backupDir, path)
 			if err != nil {
-				return err
+				return errcode.New("errImportRecoverFailed")
 			}
 			original := filepath.Join(p.DirRoot, rel)
 			if _, statErr := os.Stat(original); statErr == nil {
