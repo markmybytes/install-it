@@ -234,12 +234,7 @@ onBeforeUnmount(() => {
           </h2>
 
           <p
-            v-for="(name, i) in names.filter(
-              n =>
-                part !== 'nic' ||
-                ((!settingStore.settings.filter_miniport_nic || !n.includes('Miniport')) &&
-                  (!settingStore.settings.filter_microsoft_nic || !n.includes('Microsoft')))
-            )"
+            v-for="(name, i) in names"
             :key="i"
             class="text-sm"
           >
