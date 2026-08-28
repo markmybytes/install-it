@@ -301,6 +301,28 @@ function handleSubmit() {
                 />
 
                 <span>{{ $t('settingEnableCPUTemp') }}</span>
+
+                <UPopover mode="hover">
+                  <button
+                    type="button"
+                    class="ms-1.5 inline-flex cursor-pointer items-center justify-center text-gray-400 hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
+                    :aria-label="$t('cpuTempPopoverTitle')"
+                  >
+                    <UIcon name="i-lucide-info" class="size-4" />
+                  </button>
+
+                  <template #content>
+                    <div class="space-y-1.5 p-3 text-xs max-w-xs">
+                      <p class="font-semibold text-gray-900 dark:text-gray-100">
+                        {{ $t('cpuTempPopoverTitle') }}
+                      </p>
+
+                      <p class="text-gray-600 dark:text-gray-400 leading-relaxed">
+                        {{ $t('cpuTempPopoverBody') }}
+                      </p>
+                    </div>
+                  </template>
+                </UPopover>
               </label>
 
               <p class="text-xs text-gray-500">{{ $t('settingCPUTempRestartHint') }}</p>

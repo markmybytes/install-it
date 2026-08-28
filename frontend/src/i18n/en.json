@@ -157,6 +157,8 @@
   "path": "Path",
   "progress": "Progress",
   "refresh": "Refresh",
+  "cpuTempPopoverBody": "Temperature detection requires PawnIO. It's installed on startup if missing. It won't be uninstalled automatically.",
+  "cpuTempPopoverTitle": "Requires additional software",
   "save": "Save",
   "search": "Search...",
   "select": "Select",
