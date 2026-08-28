@@ -67,10 +67,12 @@ jobs:
       - name: Download and extract WebView2 runtime
         run: |
           cd build\bin
-          curl -o webview2.cab -L https://github.com/westinyang/WebView2RuntimeArchive/releases/download/132.0.2957.140/Microsoft.WebView2.FixedVersionRuntime.132.0.2957.140.${{ matrix.wv2arch }}.cab
+          curl -o webview2.nupkg -L "https://globalcdn.nuget.org/packages/webview2.runtime.${{ matrix.wv2arch }}.151.0.4129.107.nupkg?packageVersion=151.0.4129.107"
           mkdir internals\bin
-          expand -r webview2.cab -F:* internals\bin
-          move internals\bin\Microsoft.WebView2.FixedVersionRuntime.* internals\bin\WebView2
+          7z x webview2.nupkg -oext -y
+          move ext\contentFiles\any\any\WebView2 internals\bin\WebView2
+          rmdir /s /q ext
+          del webview2.nupkg
 
       - name: Download PCI ID database
         run: |
