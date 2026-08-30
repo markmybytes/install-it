@@ -95,11 +95,26 @@ jobs:
           7z a install-it.${{ matrix.build-name }}.zip install-it.exe internals\data -mx8
           7z a install-it.${{ matrix.build-name }}-bundled.zip install-it.exe internals -mx8
 
+      - name: Generate SHA-256 checksums for ZIPs
+        shell: pwsh
+        run: |
+          cd build\bin
+          $zipFiles = @(
+            "install-it.${{ matrix.build-name }}.zip",
+            "install-it.${{ matrix.build-name }}-bundled.zip"
+          )
+          foreach ($zip in $zipFiles) {
+            $hash = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash
+            [System.IO.File]::WriteAllText("$zip.sha256", $hash)
+          }
+
       - name: Collect artifacts
         uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.goarch }}
-          path: build/bin/*.zip
+          path: |
+            build/bin/*.zip
+            build/bin/*.sha256
 
   build-updater:
     needs: test

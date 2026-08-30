@@ -61,7 +61,6 @@ func init() {
 
 	// process Updates
 	updater = &update.Updater{DirRoot: dirRoot, Version: version}
-	updater.CheckAndApplyUpdates()
 
 	dirConf = filepath.Join(dirRoot, "conf")
 	os.MkdirAll(dirConf, os.ModePerm)
@@ -110,6 +109,10 @@ func main() {
 		},
 	}
 
+	// Apply any staged update before Wails starts: pre-Wails, WebView2 has not
+	// loaded internals yet, so there are no file locks. Safe to re-run on every launch.
+	update.ApplyStagedUpdates(dirRoot)
+
 	err = wails.Run(&options.App{
 		Title:     "install-it",
 		Width:     768,
@@ -128,12 +131,6 @@ func main() {
 			return err.Error() // unmigrated/raw errors fall back to plain string
 		},
 		OnStartup: func(ctx context.Context) {
-			// Fail-safe cleanup
-			oldBin := filepath.Join(dirRoot, "install-it.exe.old")
-			if _, err := os.Stat(oldBin); err == nil {
-				os.Remove(oldBin)
-			}
-
 			// Working directory correction
 			if cwd, err := os.Getwd(); err == nil {
 				if pathExe, err := os.Executable(); err == nil && cwd != filepath.Dir(pathExe) {

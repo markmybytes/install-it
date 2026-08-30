@@ -13,9 +13,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Masterminds/semver"
 	"install-it/pkg/errcode"
+	"install-it/pkg/utils"
+
+	"github.com/Masterminds/semver"
 )
+
+const httpTimeout = 30 * time.Second
 
 type Updater struct {
 	DirRoot string
@@ -27,10 +31,10 @@ type Updater struct {
 }
 
 func (u *Updater) httpGet(url string) (*http.Response, error) {
-	if u.client != nil {
-		return u.client.Get(url)
+	if u.client == nil {
+		u.client = &http.Client{Timeout: httpTimeout}
 	}
-	return http.Get(url)
+	return u.client.Get(url)
 }
 
 func (u *Updater) releasesURL(latest bool) string {
@@ -72,6 +76,10 @@ func (u *Updater) CheckForUpdates(preferBundled, preferPreRelease bool) (*Update
 		}
 		defer resp.Body.Close()
 
+		if resp.StatusCode != http.StatusOK {
+			return nil, errcode.New("errUpdateInfoUnavailable")
+		}
+
 		var releases []releasePayload
 		if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
 			return nil, errcode.New("errUpdateCheckFailed")
@@ -86,6 +94,10 @@ func (u *Updater) CheckForUpdates(preferBundled, preferPreRelease bool) (*Update
 			return nil, errcode.New("errUpdateCheckFailed")
 		}
 		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, errcode.New("errUpdateInfoUnavailable")
+		}
 
 		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 			return nil, errcode.New("errUpdateCheckFailed")
@@ -128,11 +140,15 @@ func (u *Updater) CheckForUpdates(preferBundled, preferPreRelease bool) (*Update
 }
 
 func (u *Updater) TriggerNativeUpdate(downloadUrl string) error {
-	resp, err := http.Get(downloadUrl)
+	resp, err := u.httpGet(downloadUrl)
 	if err != nil {
 		return errcode.New("errUpdateDownloadFailed")
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return errcode.New("errUpdateInfoUnavailable")
+	}
 
 	tmpZip, err := os.CreateTemp(u.DirRoot, "update-*.zip")
 	if err != nil {
@@ -146,7 +162,28 @@ func (u *Updater) TriggerNativeUpdate(downloadUrl string) error {
 	}
 	tmpZip.Close()
 
+	// Checksum verification
+	resp, err = u.httpGet(downloadUrl + ".sha256")
+	if err != nil {
+		return errcode.New("errUpdateInfoUnavailable")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return errcode.New("errUpdateInfoUnavailable")
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errcode.New("errUpdateChecksumMismatch")
+	}
+
+	if !utils.VerifySHA256(string(body), tmpZip.Name()) {
+		return errcode.New("errUpdateChecksumMismatch")
+	}
+
 	stageDir := filepath.Join(u.DirRoot, ".update_stage")
+	os.RemoveAll(stageDir)
 	if err := extractZipToDir(tmpZip.Name(), stageDir); err != nil {
 		os.RemoveAll(stageDir)
 		return err
@@ -160,6 +197,7 @@ func (u *Updater) TriggerNativeUpdate(downloadUrl string) error {
 		os.RemoveAll(stageDir)
 		return errcode.New("errUpdateRenameFailed")
 	}
+
 	if err := os.Rename(newExe, exe); err != nil {
 		os.Rename(old, exe) // rollback
 		os.RemoveAll(stageDir)
@@ -178,49 +216,100 @@ func (u *Updater) TriggerNativeUpdate(downloadUrl string) error {
 	return nil
 }
 
-func (u *Updater) CheckAndApplyUpdates() {
-	oldExe := filepath.Join(u.DirRoot, "install-it.exe.old")
+// ApplyStagedUpdates deploys a staged update's internals. Idempotent and safe
+// to re-run after a crash: a recovery state machine first completes or rolls
+// back any half-finished deployment, then the normal path replaces internals
+// with an explicit two-phase commit. Designed to run pre-Wails (before
+// WebView2 loads internals) — internals failures never abort the app: the old
+// internals simply stay live, which is not a brick. Free function over dirRoot
+// so main() can call it without going through the Wails bridge.
+func ApplyStagedUpdates(dirRoot string) {
+	stageDir := filepath.Join(dirRoot, ".update_stage")
+	staged := filepath.Join(stageDir, "internals")
+	oldLive := filepath.Join(dirRoot, "internals.old")
+	live := filepath.Join(dirRoot, "internals")
+	exeOld := filepath.Join(dirRoot, "install-it.exe.old")
 
-	// Wait up to 10s for the ghost WebView2 processes to die
-	if _, err := os.Stat(oldExe); err == nil {
+	exists := func(p string) bool {
+		_, err := os.Stat(p)
+		return err == nil
+	}
+
+	// --- Idempotent recovery state machine ---
+	//
+	// Two-phase commit states:
+	//   1. live -> internals.old          (phase 1)
+	//   2. staged -> live                 (phase 2)
+	//   3. remove internals.old           (cleanup)
+	// A crash between any two steps leaves a detectable partial state that is
+	// completed or rolled back here. install-it.exe.old discriminates a
+	// completed exe swap (staged internals is a pending deploy) from an
+	// interrupted extract (staged internals is untrusted garbage): the exe
+	// swap runs only after extraction completes, so its presence proves
+	// extraction finished.
+	switch {
+	case exists(staged) && !exists(live) && exists(oldLive):
+		// Crash mid-swap (phase 1 done, phase 2 pending): finish the swap.
+		if err := os.Rename(staged, live); err == nil {
+			os.RemoveAll(oldLive)
+		}
+	case exists(staged) && exists(live) && !exists(exeOld):
+		// Staged leftover from an interrupted extract: live internals are
+		// intact, discard the untrusted staged copy.
+		os.RemoveAll(staged)
+	case !exists(staged) && !exists(live) && exists(oldLive):
+		// Staged payload vanished; restore the backed-up internals.
+		os.Rename(oldLive, live)
+	case !exists(staged) && exists(live) && exists(oldLive):
+		// Phase 2 completed but cleanup was interrupted; drop the backup.
+		os.RemoveAll(oldLive)
+	}
+	// Remaining states fall through to the normal path below: staged+live+exeOld
+	// (pending replace) and staged+!live+!oldLive (first deploy).
+
+	// --- Two-phase commit for internals ---
+	if exists(staged) {
+		if exists(live) {
+			// Phase 1: back up the live internals.
+			if err := os.Rename(live, oldLive); err != nil {
+				os.RemoveAll(stageDir)
+				return
+			}
+		}
+		// Phase 2: staged internals become live.
+		if err := os.Rename(staged, live); err != nil {
+			if _, err := os.Stat(oldLive); err == nil {
+				// Rollback (best effort).
+				os.Rename(oldLive, live)
+			}
+			os.RemoveAll(stageDir)
+			return
+		}
+		// Cleanup: drop the backup only after both phases succeeded.
+		os.RemoveAll(oldLive)
+	}
+
+	// Iron Gate runs LAST so exeOld stays intact as the pending-deploy
+	// discriminator (case 2's `!exists(exeOld)` gate) across any crash
+	// between recovery and commit. Deletion has no dependency on internals.
+	// 30s budget — 300 × 100ms keeps the 100ms granularity of the original 10s loop.
+	if _, err := os.Stat(exeOld); err == nil {
 		deleted := false
-		for i := 0; i < 100; i++ {
-			if os.Remove(oldExe) == nil {
+		for i := 0; i < 300; i++ {
+			if os.Remove(exeOld) == nil {
 				deleted = true
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
 		if !deleted {
-			return // Process locked. Abort file deployment to protect integrity.
+			// Old exe still locked; abort deploy. Old internals stay live and
+			// the next launch retries.
+			return
 		}
 	}
 
-	stageDir := filepath.Join(u.DirRoot, ".update_stage")
-	entries, err := os.ReadDir(stageDir)
-	if err != nil {
-		return
-	}
-
-	for _, e := range entries {
-		name := e.Name()
-		if strings.EqualFold(name, "install-it.exe") {
-			continue
-		}
-
-		dest := filepath.Join(u.DirRoot, name)
-
-		if e.IsDir() {
-			if !strings.EqualFold(name, "internals") {
-				continue
-			}
-			os.RemoveAll(dest)
-		} else {
-			os.Remove(dest)
-		}
-		os.Rename(filepath.Join(stageDir, name), dest)
-	}
-
+	// Stage is fully consumed; scrub it regardless of outcome.
 	os.RemoveAll(stageDir)
 }
 
@@ -240,21 +329,37 @@ func extractZipToDir(zipPath, destDir string) error {
 		}
 
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(target, f.Mode())
+			if err := os.MkdirAll(target, f.Mode()); err != nil {
+				return errcode.New("errUpdateExtractFailed")
+			}
 			continue
 		}
 
-		os.MkdirAll(filepath.Dir(target), os.ModePerm)
+		if err := os.MkdirAll(filepath.Dir(target), os.ModePerm); err != nil {
+			return errcode.New("errUpdateExtractFailed")
+		}
 		rc, err := f.Open()
 		if err != nil {
 			return errcode.New("errUpdateExtractFailed")
 		}
 
-		if out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode()); err == nil {
-			io.Copy(out, rc)
-			out.Close()
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode())
+		if err != nil {
+			rc.Close()
+			return errcode.New("errUpdateExtractFailed")
 		}
-		rc.Close()
+		if _, err := io.Copy(out, rc); err != nil {
+			out.Close()
+			rc.Close()
+			return errcode.New("errUpdateExtractFailed")
+		}
+		if err := out.Close(); err != nil {
+			rc.Close()
+			return errcode.New("errUpdateExtractFailed")
+		}
+		if err := rc.Close(); err != nil {
+			return errcode.New("errUpdateExtractFailed")
+		}
 	}
 	return nil
 }

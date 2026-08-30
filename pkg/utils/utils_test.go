@@ -1,6 +1,9 @@
 package utils
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -244,4 +247,55 @@ func TestFlatMapWithVariableSizeSlices(t *testing.T) {
 			t.Errorf("FlatMap() result[%d] = %v, want %v", i, v, expected[i])
 		}
 	}
+}
+
+func TestVerifySHA256(t *testing.T) {
+	// sha256("hello") = 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+	const helloHash = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+
+	t.Run("match", func(t *testing.T) {
+		tmpFile := filepath.Join(t.TempDir(), "data")
+		if err := os.WriteFile(tmpFile, []byte("hello"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if !VerifySHA256(helloHash, tmpFile) {
+			t.Error("expected verification to succeed")
+		}
+	})
+
+	t.Run("mismatch", func(t *testing.T) {
+		tmpFile := filepath.Join(t.TempDir(), "data")
+		if err := os.WriteFile(tmpFile, []byte("hello"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if VerifySHA256(strings.Repeat("0", 64), tmpFile) {
+			t.Error("expected verification to fail")
+		}
+	})
+
+	t.Run("case-insensitive", func(t *testing.T) {
+		tmpFile := filepath.Join(t.TempDir(), "data")
+		if err := os.WriteFile(tmpFile, []byte("hello"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if !VerifySHA256(strings.ToUpper(helloHash), tmpFile) {
+			t.Error("expected verification to succeed with uppercase digest")
+		}
+	})
+
+	t.Run("missing file", func(t *testing.T) {
+		if VerifySHA256(helloHash, filepath.Join(t.TempDir(), "nope")) {
+			t.Error("expected verification to fail for missing file")
+		}
+	})
+
+	t.Run("empty body", func(t *testing.T) {
+		tmpFile := filepath.Join(t.TempDir(), "data")
+		if err := os.WriteFile(tmpFile, []byte("hello"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if VerifySHA256("", tmpFile) {
+			t.Error("expected verification to fail with empty body")
+		}
+	})
 }

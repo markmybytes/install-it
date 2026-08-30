@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Masterminds/semver"
 )
@@ -173,9 +174,10 @@ func TestExtractZipToDir(t *testing.T) {
 		defer os.RemoveAll(tmpDir)
 
 		data := makeZip(t, map[string]string{
-			"file.txt":          "hello",
-			"sub/nested.txt":    "world",
-			"sub/deep/data.bin": "binary",
+			"install-it.exe":              "binary",
+			"internals/app.txt":           "hello",
+			"internals/sub/nested.txt":    "world",
+			"internals/sub/deep/data.bin": "binary",
 		})
 		zipPath := filepath.Join(tmpDir, "test.zip")
 		os.WriteFile(zipPath, data, 0644)
@@ -186,9 +188,10 @@ func TestExtractZipToDir(t *testing.T) {
 		}
 
 		checks := map[string]string{
-			filepath.Join(destDir, "file.txt"):                "hello",
-			filepath.Join(destDir, "sub", "nested.txt"):       "world",
-			filepath.Join(destDir, "sub", "deep", "data.bin"): "binary",
+			filepath.Join(destDir, "install-it.exe"):                       "binary",
+			filepath.Join(destDir, "internals", "app.txt"):                 "hello",
+			filepath.Join(destDir, "internals", "sub", "nested.txt"):       "world",
+			filepath.Join(destDir, "internals", "sub", "deep", "data.bin"): "binary",
 		}
 		for path, want := range checks {
 			got, err := os.ReadFile(path)
@@ -233,4 +236,90 @@ func TestExtractZipToDir(t *testing.T) {
 			t.Error("zip-slip file was created outside destDir")
 		}
 	})
+}
+
+// TestCheckForUpdates_Non200ReturnsErrInfoUnavailable verifies that a non-200
+// GitHub API response (403/404/rate-limit) surfaces as errUpdateInfoUnavailable
+// instead of being decoded as "no update".
+func TestCheckForUpdates_Non200ReturnsErrInfoUnavailable(t *testing.T) {
+	for _, prerelease := range []bool{false, true} {
+		name := "stable"
+		if prerelease {
+			name = "pre-release"
+		}
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.NotFound(w, r)
+			}))
+			defer srv.Close()
+
+			u := &Updater{Version: mustVer("1.0.0"), apiBase: srv.URL}
+			_, err := u.CheckForUpdates(false, prerelease)
+			if err == nil {
+				t.Fatal("expected error for 404 response, got nil")
+			}
+			if !strings.Contains(err.Error(), "errUpdateInfoUnavailable") {
+				t.Errorf("error %q should carry errUpdateInfoUnavailable code", err.Error())
+			}
+		})
+	}
+}
+
+// TestCheckForUpdates_TimeoutConfigurable verifies the default HTTP client
+// carries the 30s timeout and that an injected client override is honored.
+func TestCheckForUpdates_TimeoutConfigurable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+
+	u := &Updater{apiBase: srv.URL}
+	if _, err := u.httpGet(u.releasesURL(true)); err != nil {
+		t.Fatalf("httpGet: %v", err)
+	}
+	if got := u.client.Timeout; got != 30*time.Second {
+		t.Errorf("default client timeout = %v, want %v", got, 30*time.Second)
+	}
+
+	custom := &http.Client{Timeout: 5 * time.Second}
+	u.client = custom
+	if _, err := u.httpGet(u.releasesURL(true)); err != nil {
+		t.Fatalf("httpGet with custom client: %v", err)
+	}
+	if got := u.client; got != custom {
+		t.Errorf("injected client not honored: got %v", got)
+	}
+}
+
+// TestExtractZipToDir_PassesThroughUnknownRoots verifies that unknown root
+// entries are extracted as-is: the apply phase only deploys internals/, and
+// the stage dir is scrubbed afterwards, so there is no need to reject them.
+func TestExtractZipToDir_PassesThroughUnknownRoots(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "extract-root-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	data := makeZip(t, map[string]string{
+		"rogue.txt":         "pwned",
+		"internals/app.txt": "hello",
+	})
+	zipPath := filepath.Join(tmpDir, "rogue.zip")
+	os.WriteFile(zipPath, data, 0644)
+
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := extractZipToDir(zipPath, destDir); err != nil {
+		t.Fatalf("extractZipToDir: %v", err)
+	}
+
+	// Unknown root entry is extracted as-is.
+	if got, err := os.ReadFile(filepath.Join(destDir, "rogue.txt")); err != nil {
+		t.Errorf("rogue.txt not extracted: %v", err)
+	} else if string(got) != "pwned" {
+		t.Errorf("rogue.txt = %q, want %q", got, "pwned")
+	}
+
+	// Legit internals/ is extracted too.
+	if _, err := os.Stat(filepath.Join(destDir, "internals", "app.txt")); err != nil {
+		t.Errorf("internals/app.txt not extracted: %v", err)
+	}
 }

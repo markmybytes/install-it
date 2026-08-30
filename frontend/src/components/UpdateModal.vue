@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { TriggerNativeUpdate } from '@/wailsjs/go/update/Updater'
-import { Quit } from '@/wailsjs/runtime/runtime'
 import { decodeError } from '@/utils/index'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
@@ -142,7 +141,6 @@ watch(
               const loader = $loading.show()
 
               TriggerNativeUpdate(selectedUrl)
-                .then(() => Quit())
                 .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
                 .finally(() => loader.hide())
             }
