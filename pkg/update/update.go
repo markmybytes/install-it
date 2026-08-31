@@ -191,14 +191,13 @@ func (u *Updater) TriggerNativeUpdate(downloadUrl string) error {
 
 	exe := filepath.Join(u.DirRoot, "install-it.exe")
 	old := filepath.Join(u.DirRoot, "install-it.exe.old")
-	newExe := filepath.Join(stageDir, "install-it.exe")
 
 	if err := os.Rename(exe, old); err != nil {
 		os.RemoveAll(stageDir)
 		return errcode.New("errUpdateRenameFailed")
 	}
 
-	if err := os.Rename(newExe, exe); err != nil {
+	if err := os.Rename(filepath.Join(stageDir, "install-it.exe"), exe); err != nil {
 		os.Rename(old, exe) // rollback
 		os.RemoveAll(stageDir)
 		return errcode.New("errUpdateRenameFailed")
