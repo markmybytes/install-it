@@ -70,6 +70,20 @@ func TestCheckForUpdates(t *testing.T) {
 			remoteTag:     "v1.2.0",
 			wantHasUpdate: true,
 		},
+		{
+			name:             "pre-release: newer prerelease triggers update",
+			localVer:         "5.6.0-beta.2",
+			remoteTag:        "v5.6.0-beta.3",
+			preferPreRelease: true,
+			wantHasUpdate:    true,
+		},
+		{
+			name:             "pre-release: local prerelease > remote stable",
+			localVer:         "5.6.0-beta.3",
+			remoteTag:        "v5.5.0",
+			preferPreRelease: false,
+			wantHasUpdate:    false,
+		},
 	}
 
 	for _, tc := range tests {
