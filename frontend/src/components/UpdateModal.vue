@@ -1,33 +1,28 @@
 <script setup lang="ts">
-import { TriggerNativeUpdate } from '@/wailsjs/go/update/Updater'
 import { decodeError } from '@/utils/index'
+import { TriggerNativeUpdate } from '@/wailsjs/go/update/Updater'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 defineProps<{ currentVersion: string }>()
 
-interface UpdateCheckResult {
+const isOpen = ref(false)
+const updateResult = ref<{
   hasUpdate: boolean
   latestVersion: string
-  downloadUrl: string
-  downloadUrlBundled: string
   releaseNotes: string
   releaseAt: string
-}
-
-const isOpen = ref(false)
-const updateResult = ref<UpdateCheckResult>()
+}>()
 const parsedNotes = ref('')
 const webviewVersion = ref(false)
 
 const releaseAt = ref('')
 
 defineExpose({
-  show: (result: UpdateCheckResult) => {
+  show: (result: typeof updateResult.value) => {
     updateResult.value = result
-    webviewVersion.value = !!result.downloadUrlBundled
     isOpen.value = true
   },
   hide: () => {
@@ -38,13 +33,6 @@ defineExpose({
 const toast = useToast()
 const $loading = useLoading()
 const { t } = useI18n()
-
-const selectedUrl = computed(() => {
-  if (!updateResult.value) return ''
-  return webviewVersion.value && updateResult.value.downloadUrlBundled
-    ? updateResult.value.downloadUrlBundled
-    : updateResult.value.downloadUrl
-})
 
 watch(
   updateResult,
@@ -128,7 +116,7 @@ watch(
           class="justify-center"
           @click="
             () => {
-              if (!selectedUrl) {
+              if (!updateResult?.latestVersion) {
                 toast.add({ title: $t('warnNoAssetUrl'), color: 'error' })
                 return
               }
@@ -140,7 +128,7 @@ watch(
               })
               const loader = $loading.show()
 
-              TriggerNativeUpdate(selectedUrl)
+              TriggerNativeUpdate(updateResult.latestVersion, webviewVersion)
                 .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
                 .finally(() => loader.hide())
             }

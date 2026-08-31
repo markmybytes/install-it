@@ -50,26 +50,19 @@ func (u *Updater) releasesURL(latest bool) string {
 }
 
 type UpdateCheckResult struct {
-	HasUpdate          bool   `json:"hasUpdate"`
-	LatestVersion      string `json:"latestVersion"`
-	DownloadUrl        string `json:"downloadUrl"`
-	DownloadUrlBundled string `json:"downloadUrlBundled"`
-	ReleaseNotes       string `json:"releaseNotes"`
-	ReleaseAt          string `json:"releaseAt"`
+	HasUpdate     bool   `json:"hasUpdate"`
+	LatestVersion string `json:"latestVersion"`
+	ReleaseNotes  string `json:"releaseNotes"`
+	ReleaseAt     string `json:"releaseAt"`
 }
 
-func (u *Updater) CheckForUpdates(preferBundled, preferPreRelease bool) (*UpdateCheckResult, error) {
-	type releasePayload struct {
+func (u *Updater) CheckForUpdates(preferPreRelease bool) (*UpdateCheckResult, error) {
+	var body struct {
 		TagName     string `json:"tag_name"`
 		Body        string `json:"body"`
 		PublishedAt string `json:"published_at"`
-		Assets      []struct {
-			Name               string `json:"name"`
-			BrowserDownloadURL string `json:"browser_download_url"`
-		} `json:"assets"`
 	}
 
-	var body releasePayload
 	if preferPreRelease {
 		resp, err := u.httpGet(u.releasesURL(false))
 		if err != nil {
@@ -81,7 +74,11 @@ func (u *Updater) CheckForUpdates(preferBundled, preferPreRelease bool) (*Update
 			return nil, errcode.New("errUpdateInfoUnavailable")
 		}
 
-		var releases []releasePayload
+		var releases []struct {
+			TagName     string `json:"tag_name"`
+			Body        string `json:"body"`
+			PublishedAt string `json:"published_at"`
+		}
 		if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
 			return nil, errcode.New("errUpdateCheckFailed")
 		}
@@ -105,8 +102,19 @@ func (u *Updater) CheckForUpdates(preferBundled, preferPreRelease bool) (*Update
 		}
 	}
 
-	latestTag := strings.TrimPrefix(body.TagName, "v")
-	latestVer, _ := semver.NewVersion(latestTag)
+	latestVer, _ := semver.NewVersion(body.TagName)
+	return &UpdateCheckResult{
+		HasUpdate:     latestVer != nil && latestVer.GreaterThan(u.Version),
+		LatestVersion: body.TagName,
+		ReleaseNotes:  body.Body,
+		ReleaseAt:     body.PublishedAt,
+	}, nil
+}
+
+func (u *Updater) TriggerNativeUpdate(tag string, preferBundled bool) error {
+	if tag == "" {
+		return errcode.New("errUpdateInfoUnavailable")
+	}
 
 	arch := runtime.GOARCH
 	if arch == "amd64" {
@@ -114,40 +122,46 @@ func (u *Updater) CheckForUpdates(preferBundled, preferPreRelease bool) (*Update
 	} else if arch == "386" {
 		arch = "x86"
 	}
-	binPrefix := fmt.Sprintf("install-it.%s-%s", runtime.GOOS, arch)
 
-	var url, urlBundled string
-	for _, a := range body.Assets {
-		if a.Name == binPrefix+".zip" {
-			url = a.BrowserDownloadURL
-		} else if a.Name == binPrefix+"-bundled.zip" {
-			urlBundled = a.BrowserDownloadURL
-		}
+	assetName := fmt.Sprintf("install-it.%s-%s", runtime.GOOS, arch)
+	if preferBundled {
+		assetName += "-bundled"
 	}
 
-	primaryUrl := url
-	if preferBundled && urlBundled != "" {
-		primaryUrl = urlBundled
-	}
+	downloadURL := fmt.Sprintf(
+		"https://github.com/markmybytes/install-it/releases/download/%s/%s.zip",
+		tag, assetName,
+	)
 
-	return &UpdateCheckResult{
-		HasUpdate:          latestVer != nil && latestVer.GreaterThan(u.Version),
-		LatestVersion:      latestTag,
-		DownloadUrl:        primaryUrl,
-		DownloadUrlBundled: urlBundled,
-		ReleaseNotes:       body.Body,
-		ReleaseAt:          body.PublishedAt,
-	}, nil
-}
-
-func (u *Updater) TriggerNativeUpdate(downloadUrl string) error {
-	resp, err := u.httpGet(downloadUrl)
+	resp, err := u.httpGet(strings.TrimSuffix(u.releasesURL(true), "/releases/latest") + "/releases/tags/" + tag)
 	if err != nil {
-		return errcode.New("errUpdateDownloadFailed")
+		return errcode.New("errUpdateCheckFailed")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		return errcode.New("errUpdateInfoUnavailable")
+	}
+
+	var payload struct {
+		Assets []struct {
+			Name   string `json:"name"`
+			Digest string `json:"digest"`
+		} `json:"assets"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return errcode.New("errUpdateCheckFailed")
+	}
+
+	var digest string
+	for _, asset := range payload.Assets {
+		if asset.Name == assetName+".zip" {
+			digest = asset.Digest
+			break
+		}
+	}
+	if digest == "" {
 		return errcode.New("errUpdateInfoUnavailable")
 	}
 
@@ -157,29 +171,26 @@ func (u *Updater) TriggerNativeUpdate(downloadUrl string) error {
 	}
 	defer os.Remove(tmpZip.Name())
 
-	if _, err := io.Copy(tmpZip, resp.Body); err != nil {
-		tmpZip.Close()
-		return errcode.New("errUpdateWriteFailed")
-	}
-	tmpZip.Close()
-
-	// Checksum verification
-	resp, err = u.httpGet(downloadUrl + ".sha256")
+	resp, err = u.httpGet(downloadURL)
 	if err != nil {
-		return errcode.New("errUpdateInfoUnavailable")
+		return errcode.New("errUpdateDownloadFailed")
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
 		return errcode.New("errUpdateInfoUnavailable")
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return errcode.New("errUpdateChecksumMismatch")
+	if _, err := io.Copy(tmpZip, resp.Body); err != nil {
+		tmpZip.Close()
+		resp.Body.Close()
+		return errcode.New("errUpdateWriteFailed")
 	}
 
-	if !utils.VerifySHA256(string(body), tmpZip.Name()) {
+	tmpZip.Close()
+	resp.Body.Close()
+
+	if !utils.VerifySHA256(strings.TrimPrefix(digest, "sha256:"), tmpZip.Name()) {
 		return errcode.New("errUpdateChecksumMismatch")
 	}
 
@@ -197,7 +208,6 @@ func (u *Updater) TriggerNativeUpdate(downloadUrl string) error {
 		os.RemoveAll(stageDir)
 		return errcode.New("errUpdateRenameFailed")
 	}
-
 	if err := os.Rename(filepath.Join(stageDir, "install-it.exe"), exe); err != nil {
 		os.Rename(old, exe) // rollback
 		os.RemoveAll(stageDir)

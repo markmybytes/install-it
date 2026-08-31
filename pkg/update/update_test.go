@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -27,30 +26,11 @@ func mustVer(v string) *semver.Version {
 }
 
 // buildReleaseJSON returns a single GitHub release payload.
-func buildReleaseJSON(tag string, withBundled bool) []byte {
-	arch := runtime.GOARCH
-	if arch == "amd64" {
-		arch = "x64"
-	} else if arch == "386" {
-		arch = "x86"
-	}
-	prefix := fmt.Sprintf("install-it.%s-%s", runtime.GOOS, arch)
-
-	assets := []map[string]string{
-		{"name": prefix + ".zip", "browser_download_url": "http://dl.example.com/" + prefix + ".zip"},
-	}
-	if withBundled {
-		assets = append(assets, map[string]string{
-			"name":                 prefix + "-bundled.zip",
-			"browser_download_url": "http://dl.example.com/" + prefix + "-bundled.zip",
-		})
-	}
-
+func buildReleaseJSON(tag string) []byte {
 	payload := map[string]interface{}{
 		"tag_name":     tag,
 		"body":         "Release notes for " + tag,
 		"published_at": "2024-06-01T00:00:00Z",
-		"assets":       assets,
 	}
 	b, _ := json.Marshal(payload)
 	return b
@@ -58,32 +38,18 @@ func buildReleaseJSON(tag string, withBundled bool) []byte {
 
 // TestCheckForUpdates covers four distinct scenarios via table-driven subtests.
 func TestCheckForUpdates(t *testing.T) {
-	arch := runtime.GOARCH
-	if arch == "amd64" {
-		arch = "x64"
-	} else if arch == "386" {
-		arch = "x86"
-	}
-	prefix := fmt.Sprintf("install-it.%s-%s", runtime.GOOS, arch)
-	stdURL := "http://dl.example.com/" + prefix + ".zip"
-	bundleURL := "http://dl.example.com/" + prefix + "-bundled.zip"
-
 	tests := []struct {
 		name             string
 		localVer         string
 		remoteTag        string
 		preferPreRelease bool
-		preferBundled    bool
-		withBundled      bool
 		wantHasUpdate    bool
-		wantDownloadURL  string
 	}{
 		{
-			name:            "stable: remote newer triggers update",
-			localVer:        "1.0.0",
-			remoteTag:       "v1.1.0",
-			wantHasUpdate:   true,
-			wantDownloadURL: stdURL,
+			name:          "stable: remote newer triggers update",
+			localVer:      "1.0.0",
+			remoteTag:     "v1.1.0",
+			wantHasUpdate: true,
 		},
 		{
 			name:          "stable: local >= remote means no update",
@@ -97,23 +63,19 @@ func TestCheckForUpdates(t *testing.T) {
 			remoteTag:        "v2.0.0-beta.1",
 			preferPreRelease: true,
 			wantHasUpdate:    true,
-			wantDownloadURL:  stdURL,
 		},
 		{
-			name:            "bundled asset preferred when preferBundled=true and available",
-			localVer:        "1.0.0",
-			remoteTag:       "v1.2.0",
-			preferBundled:   true,
-			withBundled:     true,
-			wantHasUpdate:   true,
-			wantDownloadURL: bundleURL,
+			name:          "release metadata without assets still works",
+			localVer:      "1.0.0",
+			remoteTag:     "v1.2.0",
+			wantHasUpdate: true,
 		},
 	}
 
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			releaseJSON := buildReleaseJSON(tc.remoteTag, tc.withBundled)
+			releaseJSON := buildReleaseJSON(tc.remoteTag)
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
@@ -131,18 +93,12 @@ func TestCheckForUpdates(t *testing.T) {
 				apiBase: srv.URL,
 			}
 
-			result, err := u.CheckForUpdates(tc.preferBundled, tc.preferPreRelease)
+			result, err := u.CheckForUpdates(tc.preferPreRelease)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if result.HasUpdate != tc.wantHasUpdate {
 				t.Errorf("HasUpdate = %v, want %v", result.HasUpdate, tc.wantHasUpdate)
-			}
-			if tc.wantDownloadURL != "" && result.DownloadUrl != tc.wantDownloadURL {
-				t.Errorf("DownloadUrl = %q, want %q", result.DownloadUrl, tc.wantDownloadURL)
-			}
-			if tc.withBundled && result.DownloadUrlBundled != bundleURL {
-				t.Errorf("DownloadUrlBundled = %q, want %q", result.DownloadUrlBundled, bundleURL)
 			}
 		})
 	}
@@ -254,7 +210,7 @@ func TestCheckForUpdates_Non200ReturnsErrInfoUnavailable(t *testing.T) {
 			defer srv.Close()
 
 			u := &Updater{Version: mustVer("1.0.0"), apiBase: srv.URL}
-			_, err := u.CheckForUpdates(false, prerelease)
+			_, err := u.CheckForUpdates(prerelease)
 			if err == nil {
 				t.Fatal("expected error for 404 response, got nil")
 			}

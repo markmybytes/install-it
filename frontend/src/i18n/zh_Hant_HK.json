@@ -235,7 +235,7 @@
   "warnEnterExportPath": "請先輸入匯出檔案的儲存路徑。",
   "msgFinished": "完成",
   "errInvalidZipFile": "非有效的檔案。",
-  "warnNoAssetUrl": "沒有下載網址。",
+  "warnNoAssetUrl": "沒有可用的更新標籤。",
   "warnNoHardwareInfo": "沒有硬件資訊。",
   "warnNoInputWarning": "請先選擇項目或工作。",
   "warnGroupNameRequired": "請填寫選項名稱。",

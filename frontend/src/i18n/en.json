@@ -235,7 +235,7 @@
   "warnEnterExportPath": "Please enter an export file path first.",
   "msgFinished": "Finished",
   "errInvalidZipFile": "Invalid file.",
-  "warnNoAssetUrl": "No download URL available.",
+  "warnNoAssetUrl": "No update tag available.",
   "warnNoHardwareInfo": "No hardware information available.",
   "warnNoInputWarning": "Please select an entry or task first.",
   "warnGroupNameRequired": "Option name is required.",
