@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"install-it/pkg/errcode"
@@ -205,7 +206,7 @@ func (u *Updater) TriggerNativeUpdate(downloadUrl string) error {
 
 	cmd := exec.Command(exe)
 	cmd.Dir = u.DirRoot
-	cmd.SysProcAttr = detachedProc()
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x00000008}
 	if err := cmd.Start(); err != nil {
 		return errcode.New("errUpdateSpawnFailed")
 	}
