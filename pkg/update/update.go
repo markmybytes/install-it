@@ -128,11 +128,6 @@ func (u *Updater) TriggerNativeUpdate(tag string, preferBundled bool) error {
 		assetName += "-bundled"
 	}
 
-	downloadURL := fmt.Sprintf(
-		"https://github.com/markmybytes/install-it/releases/download/%s/%s.zip",
-		tag, assetName,
-	)
-
 	resp, err := u.httpGet(strings.TrimSuffix(u.releasesURL(true), "/releases/latest") + "/releases/tags/" + tag)
 	if err != nil {
 		return errcode.New("errUpdateCheckFailed")
@@ -145,8 +140,9 @@ func (u *Updater) TriggerNativeUpdate(tag string, preferBundled bool) error {
 
 	var payload struct {
 		Assets []struct {
-			Name   string `json:"name"`
-			Digest string `json:"digest"`
+			Name               string `json:"name"`
+			Digest             string `json:"digest"`
+			BrowserDownloadURL string `json:"browser_download_url"`
 		} `json:"assets"`
 	}
 
@@ -154,14 +150,15 @@ func (u *Updater) TriggerNativeUpdate(tag string, preferBundled bool) error {
 		return errcode.New("errUpdateCheckFailed")
 	}
 
-	var digest string
+	var digest, downloadURL string
 	for _, asset := range payload.Assets {
 		if asset.Name == assetName+".zip" {
 			digest = asset.Digest
+			downloadURL = asset.BrowserDownloadURL
 			break
 		}
 	}
-	if digest == "" {
+	if digest == "" || downloadURL == "" {
 		return errcode.New("errUpdateInfoUnavailable")
 	}
 
