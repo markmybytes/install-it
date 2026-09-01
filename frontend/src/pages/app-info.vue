@@ -1,11 +1,6 @@
 <script setup lang="ts">
 import { RunAndOutput } from '@/wailsjs/go/execute/CommandExecutor'
-import {
-  AppDriverPath,
-  AppVersion,
-  WebView2Path,
-  WebView2Version
-} from '@/wailsjs/go/main/App'
+import { AppDriverPath, AppVersion, WebView2Path, WebView2Version } from '@/wailsjs/go/main/App'
 import { CheckForUpdates } from '@/wailsjs/go/update/Updater'
 import { BrowserOpenURL, Environment } from '@/wailsjs/runtime/runtime'
 import { decodeError } from '@/utils/index'
@@ -73,7 +68,6 @@ onBeforeMount(() => {
     } else {
       toast.add({ title: decodeError(pwv2.reason, t), color: 'error' })
     }
-
   })
 })
 

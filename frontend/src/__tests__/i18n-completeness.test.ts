@@ -38,7 +38,7 @@ function collectErrcodeCodes(): Set<string> {
   const goFiles = [
     resolve(repoRoot, 'app.go'),
     resolve(repoRoot, 'main.go'),
-    ...walkGoFiles(resolve(repoRoot, 'pkg')).filter(p => !p.includes(`pkg${sep}errcode${sep}`)),
+    ...walkGoFiles(resolve(repoRoot, 'pkg')).filter(p => !p.includes(`pkg${sep}errcode${sep}`))
   ]
   const codes = new Set<string>()
   const re = /errcode\.Newf?\("([^"]+)"/g

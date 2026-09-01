@@ -130,7 +130,10 @@ async function handleAbort(process: Process) {
           return
         }
 
-        toast.add({ title: `[${getProcessName(process)}] ${decodeError(error, t)}`, color: 'error' })
+        toast.add({
+          title: `[${getProcessName(process)}] ${decodeError(error, t)}`,
+          color: 'error'
+        })
 
         process.status = status.Status.ERRORED
         process.result = {

@@ -203,7 +203,9 @@ function updateProgress() {
               color="error"
               @click="
                 () => {
-                  programPorter.Abort().catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
+                  programPorter
+                    .Abort()
+                    .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
                 }
               "
             >

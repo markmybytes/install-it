@@ -56,7 +56,7 @@ export function testMatchRule(rule: storage.Rule, input: string) {
  */
 export function decodeError(
   err: unknown,
-  t: (key: string, params?: Record<string, unknown>) => string,
+  t: (key: string, params?: Record<string, unknown>) => string
 ): string {
   const { code, params } = extractCode(err)
   return params ? t(code, params) : t(code)
