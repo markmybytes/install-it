@@ -231,7 +231,7 @@
   "errCancelCompletedFailed": "[{name}] 未能取消，或已完成執行。",
   "errCancelFailed": "[{name}] 無法取消。",
   "errCheckUpdateFailed": "未能取得程式版本資訊，所以無法檢查更新。",
-  "msgDownloadingUpdater": "完成下載更新程式後，更新程序會自動開始。",
+  "msgDownloadingUpdater": "正在下載更新，完成後應用程式將自動關閉並完成更新。",
   "warnEnterExportPath": "請先輸入匯出檔案的儲存路徑。",
   "msgFinished": "完成",
   "errInvalidZipFile": "非有效的檔案。",

@@ -231,7 +231,7 @@
   "errCancelCompletedFailed": "[{name}] Failed to abort. The execution is probably completed.",
   "errCancelFailed": "[{name}] Failed to abort.",
   "errCheckUpdateFailed": "Unable to check update due to unable to retrieve version info.",
-  "msgDownloadingUpdater": "Downloading the updater. Upon finished, the software will be closed and updated.",
+  "msgDownloadingUpdater": "Downloading update. The app will close and update automatically when finished.",
   "warnEnterExportPath": "Please enter an export file path first.",
   "msgFinished": "Finished",
   "errInvalidZipFile": "Invalid file.",
