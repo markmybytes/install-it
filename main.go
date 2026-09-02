@@ -69,11 +69,6 @@ func init() {
 	for _, sub := range []string{"network", "display", "miscellaneous"} {
 		os.MkdirAll(filepath.Join(dirDir, sub), os.ModePerm)
 	}
-
-	pathWV2 = filepath.Join(dirRoot, "internals", "bin", "WebView2")
-	if _, err := os.Stat(pathWV2); err != nil {
-		pathWV2 = ""
-	}
 }
 
 func main() {
@@ -109,9 +104,14 @@ func main() {
 		},
 	}
 
-	// Apply any staged update before Wails starts: pre-Wails, WebView2 has not
-	// loaded internals yet, so there are no file locks. Safe to re-run on every launch.
+	// Apply before Wails starts: this process has not loaded WebView2 yet. The
+	// previous process's WebView2 children can survive os.Exit briefly, so the
+	// updater retries directory handoff instead of deleting live internals.
 	update.ApplyStagedUpdates(dirRoot)
+	pathWV2 = filepath.Join(dirRoot, "internals", "bin", "WebView2")
+	if _, err := os.Stat(pathWV2); err != nil {
+		pathWV2 = ""
+	}
 
 	err = wails.Run(&options.App{
 		Title:     "install-it",

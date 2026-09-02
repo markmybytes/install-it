@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 )
 
 // Returns true if all elements in the slice satisfy the predicate.
@@ -42,6 +43,28 @@ func FlatMap[A, B any](input []A, f func(A) []B) []B {
 		result = append(result, f(v)...)
 	}
 	return result
+}
+
+// Retry calls fn immediately and retries failed calls until maxDuration elapses.
+// It returns nil on success or the last error returned by fn.
+func Retry(fn func() error, interval, maxDuration time.Duration) error {
+	deadline := time.Now().Add(maxDuration)
+	err := fn()
+	for err != nil {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return err
+		}
+		if interval > remaining {
+			interval = remaining
+		}
+		time.Sleep(interval)
+		if !time.Now().Before(deadline) {
+			return err
+		}
+		err = fn()
+	}
+	return nil
 }
 
 // Returns true iff the SHA-256 of filePath matches the digest in body.

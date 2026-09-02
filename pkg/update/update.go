@@ -223,13 +223,13 @@ func (u *Updater) TriggerNativeUpdate(tag string, preferBundled bool) error {
 	return nil
 }
 
-// ApplyStagedUpdates deploys a staged update's internals. Idempotent and safe
-// to re-run after a crash: a recovery state machine first completes or rolls
-// back any half-finished deployment, then the normal path replaces internals
-// with an explicit two-phase commit. Designed to run pre-Wails (before
-// WebView2 loads internals) — internals failures never abort the app: the old
-// internals simply stay live, which is not a brick. Free function over dirRoot
-// so main() can call it without going through the Wails bridge.
+// ApplyStagedUpdates deploys staged internals. It is idempotent and safe to
+// re-run after a crash: recovery first completes or rolls back half-finished
+// deployment, then normal flow replaces internals with an explicit two-phase
+// commit. It runs pre-Wails, so this process has not loaded WebView2; children
+// from the previous process may still hold handles briefly. Failed handoff
+// leaves live and staged trees intact for the next launch. Free function over
+// dirRoot so main() can call it without going through the Wails bridge.
 func ApplyStagedUpdates(dirRoot string) {
 	stageDir := filepath.Join(dirRoot, ".update_stage")
 	staged := filepath.Join(stageDir, "internals")
@@ -249,67 +249,99 @@ func ApplyStagedUpdates(dirRoot string) {
 	//   2. staged -> live                 (phase 2)
 	//   3. remove internals.old           (cleanup)
 	// A crash between any two steps leaves a detectable partial state that is
-	// completed or rolled back here. install-it.exe.old discriminates a
-	// completed exe swap (staged internals is a pending deploy) from an
-	// interrupted extract (staged internals is untrusted garbage): the exe
-	// swap runs only after extraction completes, so its presence proves
-	// extraction finished.
+	// completed or rolled back here. install-it.exe.old distinguishes a valid
+	// pending deploy from an interrupted extract: the exe swap runs only after
+	// extraction completes, so its presence proves staged internals are trusted.
 	switch {
 	case exists(staged) && !exists(live) && exists(oldLive):
 		// Crash mid-swap (phase 1 done, phase 2 pending): finish the swap.
-		if err := os.Rename(staged, live); err == nil {
+		if err := utils.Retry(func() error {
+			return os.Rename(staged, live)
+		}, 100*time.Millisecond, 30*time.Second); err == nil {
 			os.RemoveAll(oldLive)
+		} else {
+			// Keep both old and staged copies for the next launch.
+			return
+		}
+	case exists(staged) && exists(live) && exists(oldLive) && !exists(exeOld):
+		// No exe marker means staged internals are abandoned extract debris.
+		os.RemoveAll(oldLive)
+		if exists(oldLive) {
+			return
+		}
+		os.RemoveAll(staged)
+		if exists(staged) {
+			return
+		}
+	case exists(staged) && exists(live) && exists(oldLive) && exists(exeOld):
+		// Exe marker proves staged internals are a valid pending deployment.
+		// Live proves phase 2 completed; remove stale cleanup debris before
+		// starting the next replacement.
+		os.RemoveAll(oldLive)
+		if exists(oldLive) {
+			return
 		}
 	case exists(staged) && exists(live) && !exists(exeOld):
 		// Staged leftover from an interrupted extract: live internals are
 		// intact, discard the untrusted staged copy.
 		os.RemoveAll(staged)
+		if exists(staged) {
+			return
+		}
 	case !exists(staged) && !exists(live) && exists(oldLive):
 		// Staged payload vanished; restore the backed-up internals.
-		os.Rename(oldLive, live)
+		if err := utils.Retry(func() error {
+			return os.Rename(oldLive, live)
+		}, 100*time.Millisecond, 30*time.Second); err != nil {
+			return
+		}
 	case !exists(staged) && exists(live) && exists(oldLive):
 		// Phase 2 completed but cleanup was interrupted; drop the backup.
 		os.RemoveAll(oldLive)
 	}
-	// Remaining states fall through to the normal path below: staged+live+exeOld
-	// (pending replace) and staged+!live+!oldLive (first deploy).
+	// Remaining valid states fall through: staged+live+exeOld with no stale
+	// backup (pending replace), or staged+!live+!oldLive (first deploy).
 
 	// --- Two-phase commit for internals ---
 	if exists(staged) {
 		if exists(live) {
+			// An existing backup means a previous handoff is incomplete. Do not
+			// touch live or staged while its outcome is ambiguous.
+			if exists(oldLive) {
+				return
+			}
 			// Phase 1: back up the live internals.
-			if err := os.Rename(live, oldLive); err != nil {
-				os.RemoveAll(stageDir)
+			if err := utils.Retry(func() error {
+				return os.Rename(live, oldLive)
+			}, 100*time.Millisecond, 30*time.Second); err != nil {
 				return
 			}
 		}
 		// Phase 2: staged internals become live.
-		if err := os.Rename(staged, live); err != nil {
+		if err := utils.Retry(func() error {
+			return os.Rename(staged, live)
+		}, 100*time.Millisecond, 30*time.Second); err != nil {
 			if _, err := os.Stat(oldLive); err == nil {
-				// Rollback (best effort).
-				os.Rename(oldLive, live)
+				// Rollback, also retrying around transient Windows locks.
+				utils.Retry(func() error {
+					return os.Rename(oldLive, live)
+				}, 100*time.Millisecond, 30*time.Second)
 			}
-			os.RemoveAll(stageDir)
 			return
 		}
-		// Cleanup: drop the backup only after both phases succeeded.
+		// Cleanup is best effort; live already points at complete staged internals.
 		os.RemoveAll(oldLive)
 	}
 
 	// Iron Gate runs LAST so exeOld stays intact as the pending-deploy
 	// discriminator (case 2's `!exists(exeOld)` gate) across any crash
 	// between recovery and commit. Deletion has no dependency on internals.
-	// 30s budget — 300 × 100ms keeps the 100ms granularity of the original 10s loop.
+	// 30s budget at 100ms granularity covers transient WebView2 child-process
+	// locks while leaving room for slower Windows filesystem conditions.
 	if _, err := os.Stat(exeOld); err == nil {
-		deleted := false
-		for i := 0; i < 300; i++ {
-			if os.Remove(exeOld) == nil {
-				deleted = true
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-		if !deleted {
+		if err := utils.Retry(func() error {
+			return os.Remove(exeOld)
+		}, 100*time.Millisecond, 30*time.Second); err != nil {
 			// Old exe still locked; abort deploy. Old internals stay live and
 			// the next launch retries.
 			return

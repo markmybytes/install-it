@@ -1,10 +1,12 @@
 package utils
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestAllWithAllTrue tests All when all elements satisfy the predicate
@@ -246,6 +248,57 @@ func TestFlatMapWithVariableSizeSlices(t *testing.T) {
 		if v != expected[i] {
 			t.Errorf("FlatMap() result[%d] = %v, want %v", i, v, expected[i])
 		}
+	}
+}
+
+func TestRetryImmediateSuccess(t *testing.T) {
+	calls := 0
+	if err := Retry(func() error {
+		calls++
+		return nil
+	}, time.Millisecond, 10*time.Millisecond); err != nil {
+		t.Fatalf("Retry() error = %v, want nil", err)
+	}
+	if calls != 1 {
+		t.Errorf("Retry() calls = %d, want 1", calls)
+	}
+}
+
+func TestRetryTransientFailureThenSuccess(t *testing.T) {
+	wantErr := errors.New("transient")
+	calls := 0
+	if err := Retry(func() error {
+		calls++
+		if calls < 3 {
+			return wantErr
+		}
+		return nil
+	}, time.Millisecond, 50*time.Millisecond); err != nil {
+		t.Fatalf("Retry() error = %v, want nil", err)
+	}
+	if calls != 3 {
+		t.Errorf("Retry() calls = %d, want 3", calls)
+	}
+}
+
+func TestRetryAlwaysFailureReturnsLastErrorWithinDuration(t *testing.T) {
+	lastErr := errors.New("last")
+	calls := 0
+	start := time.Now()
+	err := Retry(func() error {
+		calls++
+		return lastErr
+	}, time.Millisecond, 5*time.Millisecond)
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, lastErr) {
+		t.Errorf("Retry() error = %v, want %v", err, lastErr)
+	}
+	if calls < 2 {
+		t.Errorf("Retry() calls = %d, want retries", calls)
+	}
+	if elapsed > 100*time.Millisecond {
+		t.Errorf("Retry() elapsed = %v, exceeded max duration", elapsed)
 	}
 }
 

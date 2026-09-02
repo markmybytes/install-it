@@ -222,4 +222,32 @@ func TestApplyStagedUpdates_RecoveryMatrix(t *testing.T) {
 		assertNotExist(t, filepath.Join(root, "install-it.exe.old"), "install-it.exe.old after Iron Gate")
 		assertFileContent(t, filepath.Join(root, "internals", "v.txt"), "new")
 	})
+
+	t.Run("stale oldLive with pending deploy: clear and proceed", func(t *testing.T) {
+		root := t.TempDir()
+		writeFile(t, filepath.Join(root, ".update_stage", "internals", "v.txt"), "new")
+		writeFile(t, filepath.Join(root, "internals", "v.txt"), "old")
+		writeFile(t, filepath.Join(root, "internals.old", "v.txt"), "previous-old")
+		writeFile(t, filepath.Join(root, "install-it.exe.old"), "old-exe")
+
+		ApplyStagedUpdates(root)
+
+		assertFileContent(t, filepath.Join(root, "internals", "v.txt"), "new")
+		assertNotExist(t, filepath.Join(root, "internals.old"), "internals.old after apply")
+		assertNotExist(t, filepath.Join(root, ".update_stage"), ".update_stage after apply")
+		assertNotExist(t, filepath.Join(root, "install-it.exe.old"), "install-it.exe.old after apply")
+	})
+
+	t.Run("slim replacement does not merge bundled bin", func(t *testing.T) {
+		root := t.TempDir()
+		writeFile(t, filepath.Join(root, ".update_stage", "internals", "version.txt"), "slim")
+		writeFile(t, filepath.Join(root, "internals", "version.txt"), "bundled")
+		writeFile(t, filepath.Join(root, "internals", "bin", "WebView2", "old.dll"), "old-runtime")
+		writeFile(t, filepath.Join(root, "install-it.exe.old"), "old-exe")
+
+		ApplyStagedUpdates(root)
+
+		assertFileContent(t, filepath.Join(root, "internals", "version.txt"), "slim")
+		assertNotExist(t, filepath.Join(root, "internals", "bin"), "bundled bin after slim replacement")
+	})
 }
