@@ -1,40 +1,5 @@
 import type { storage } from '@/wailsjs/go/models'
 import * as libsysi from '@/wailsjs/go/sysinfo/SysInfo'
-import DOMPurify from 'dompurify'
-import { marked } from 'marked'
-import * as semver from 'semver'
-
-export async function latestRelease(currentVersion: string, binaryType?: string) {
-  return fetch('https://api.github.com/repos/markmybytes/install-it/releases/latest')
-    .then(response => response.json())
-    .then(async body => {
-      const version = semver.clean(body.tag_name) || '0.0.0'
-
-      let assetUrl = ''
-      let webviewAssetUrl: string | undefined
-      if (binaryType && Array.isArray(body.assets)) {
-        for (const asset of body.assets) {
-          if (asset.name === `install-it.${binaryType}.zip`) {
-            assetUrl = asset.browser_download_url as string
-          } else if (asset.name === `install-it.${binaryType}.webview.zip`) {
-            webviewAssetUrl = asset.browser_download_url as string
-          }
-        }
-      }
-
-      return {
-        hasUpdate: semver.gt(version, currentVersion),
-        name: body.name as string,
-        releaseAt: new Date(Date.parse(body.published_at)),
-        releaseNotes: DOMPurify.sanitize(await marked.parse(body.body)),
-        tag: body.tag_name as string,
-        url: body.html_url as string,
-        version: version,
-        assetUrl,
-        webviewAssetUrl
-      }
-    })
-}
 
 /**
  * Retrieves detailed hardware information from the system.
@@ -91,7 +56,7 @@ export function testMatchRule(rule: storage.Rule, input: string) {
  */
 export function decodeError(
   err: unknown,
-  t: (key: string, params?: Record<string, unknown>) => string,
+  t: (key: string, params?: Record<string, unknown>) => string
 ): string {
   const { code, params } = extractCode(err)
   return params ? t(code, params) : t(code)

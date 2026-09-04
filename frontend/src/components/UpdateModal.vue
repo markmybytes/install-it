@@ -1,34 +1,30 @@
 <script setup lang="ts">
-import { TriggerNativeUpdate } from '@/wailsjs/go/update/Updater'
-import { Quit } from '@/wailsjs/runtime/runtime'
 import { decodeError } from '@/utils/index'
+import { TriggerNativeUpdate } from '@/wailsjs/go/update/Updater'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 defineProps<{ currentVersion: string }>()
 
-interface UpdateCheckResult {
+const isOpen = ref(false)
+const updateResult = ref<{
   hasUpdate: boolean
   latestVersion: string
-  downloadUrl: string
-  downloadUrlBundled: string
   releaseNotes: string
   releaseAt: string
-}
-
-const isOpen = ref(false)
-const updateResult = ref<UpdateCheckResult>()
+}>()
 const parsedNotes = ref('')
 const webviewVersion = ref(false)
+const isUpdating = ref(false)
 
 const releaseAt = ref('')
 
 defineExpose({
-  show: (result: UpdateCheckResult) => {
+  show: (result: typeof updateResult.value) => {
     updateResult.value = result
-    webviewVersion.value = !!result.downloadUrlBundled
+    isUpdating.value = false
     isOpen.value = true
   },
   hide: () => {
@@ -37,15 +33,21 @@ defineExpose({
 })
 
 const toast = useToast()
-const $loading = useLoading()
 const { t } = useI18n()
 
-const selectedUrl = computed(() => {
-  if (!updateResult.value) return ''
-  return webviewVersion.value && updateResult.value.downloadUrlBundled
-    ? updateResult.value.downloadUrlBundled
-    : updateResult.value.downloadUrl
-})
+const handleUpdate = () => {
+  if (!updateResult.value?.latestVersion) {
+    toast.add({ title: t('warnNoAssetUrl'), color: 'error' })
+    return
+  }
+
+  isUpdating.value = true
+
+  TriggerNativeUpdate(updateResult.value.latestVersion, webviewVersion.value).catch(err => {
+    isUpdating.value = false
+    toast.add({ title: decodeError(err, t), color: 'error' })
+  })
+}
 
 watch(
   updateResult,
@@ -70,9 +72,25 @@ watch(
 </script>
 
 <template>
-  <UModal v-model:open="isOpen" :title="$t('titleUpdateInfo')">
+  <UModal
+    v-model:open="isOpen"
+    :title="$t('titleUpdateInfo')"
+    :dismissible="!isUpdating"
+    :close="!isUpdating"
+  >
     <template #body>
-      <div class="flex flex-col gap-y-3">
+      <div
+        v-if="isUpdating"
+        class="flex min-h-75 flex-col items-center justify-center gap-y-4 px-4 py-12"
+      >
+        <UIcon name="i-lucide-loader-2" class="size-10 animate-spin text-primary" />
+
+        <p class="max-w-xs text-center text-sm text-gray-500 dark:text-gray-400">
+          {{ $t('msgDownloadingUpdater') }}
+        </p>
+      </div>
+
+      <div v-else class="flex flex-col gap-y-3">
         <div class="flex grow flex-col gap-y-2">
           <div class="flex">
             <h1 class="min-w-34 font-medium">
@@ -127,26 +145,8 @@ watch(
           color="secondary"
           block
           class="justify-center"
-          @click="
-            () => {
-              if (!selectedUrl) {
-                toast.add({ title: $t('warnNoAssetUrl'), color: 'error' })
-                return
-              }
-
-              toast.add({
-                title: $t('msgDownloadingUpdater'),
-                color: 'info',
-                duration: 60 * 1000
-              })
-              const loader = $loading.show()
-
-              TriggerNativeUpdate(selectedUrl)
-                .then(() => Quit())
-                .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
-                .finally(() => loader.hide())
-            }
-          "
+          :loading="isUpdating"
+          @click="handleUpdate"
         >
           {{ $t('labelUpdate') }}
         </UButton>

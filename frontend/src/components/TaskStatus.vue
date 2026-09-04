@@ -49,10 +49,7 @@ function statusShortKey(status: string): string {
           </p>
 
           <p
-            v-else-if="
-              props.process.result &&
-              props.process.result.error !== ''
-            "
+            v-else-if="props.process.result && props.process.result.error !== ''"
             class="font-mono text-xs text-red-400"
           >
             {{ $t(props.process.result.error) }}

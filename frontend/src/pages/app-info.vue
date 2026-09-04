@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { RunAndOutput } from '@/wailsjs/go/execute/CommandExecutor'
-import {
-  AppDriverPath,
-  AppVersion,
-  PathExists,
-  WebView2Path,
-  WebView2Version
-} from '@/wailsjs/go/main/App'
+import { AppDriverPath, AppVersion, WebView2Path, WebView2Version } from '@/wailsjs/go/main/App'
 import { CheckForUpdates } from '@/wailsjs/go/update/Updater'
 import { BrowserOpenURL, Environment } from '@/wailsjs/runtime/runtime'
 import { decodeError } from '@/utils/index'
@@ -35,8 +29,6 @@ const info = ref({
 })
 
 const onCheck = ref(false)
-const preferBundled = ref(false)
-
 const appSettingStore = useAppSettingStore()
 
 onBeforeMount(() => {
@@ -45,9 +37,8 @@ onBeforeMount(() => {
     Environment(),
     AppDriverPath(),
     WebView2Version(),
-    WebView2Path(),
-    PathExists('internals')
-  ]).then(([ver, env, pdri, vwv2, pwv2, hasInternals]) => {
+    WebView2Path()
+  ]).then(([ver, env, pdri, vwv2, pwv2]) => {
     if (ver.status !== 'rejected') {
       info.value.app.version = ver.value
     } else {
@@ -77,12 +68,6 @@ onBeforeMount(() => {
     } else {
       toast.add({ title: decodeError(pwv2.reason, t), color: 'error' })
     }
-
-    if (hasInternals.status !== 'rejected') {
-      preferBundled.value = hasInternals.value
-    } else {
-      toast.add({ title: decodeError(hasInternals.reason, t), color: 'error' })
-    }
   })
 })
 
@@ -99,7 +84,7 @@ function checkUpdate() {
   onCheck.value = true
   $loading.show()
 
-  CheckForUpdates(preferBundled.value, appSettingStore.settings.allow_pre_release)
+  CheckForUpdates(appSettingStore.settings.allow_pre_release)
     .then(result => {
       if (result.hasUpdate) {
         modal.value?.show(result)

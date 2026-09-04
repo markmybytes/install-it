@@ -9,9 +9,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Masterminds/semver"
 )
@@ -26,30 +26,11 @@ func mustVer(v string) *semver.Version {
 }
 
 // buildReleaseJSON returns a single GitHub release payload.
-func buildReleaseJSON(tag string, withBundled bool) []byte {
-	arch := runtime.GOARCH
-	if arch == "amd64" {
-		arch = "x64"
-	} else if arch == "386" {
-		arch = "x86"
-	}
-	prefix := fmt.Sprintf("install-it.%s-%s", runtime.GOOS, arch)
-
-	assets := []map[string]string{
-		{"name": prefix + ".zip", "browser_download_url": "http://dl.example.com/" + prefix + ".zip"},
-	}
-	if withBundled {
-		assets = append(assets, map[string]string{
-			"name":                 prefix + "-bundled.zip",
-			"browser_download_url": "http://dl.example.com/" + prefix + "-bundled.zip",
-		})
-	}
-
+func buildReleaseJSON(tag string) []byte {
 	payload := map[string]interface{}{
 		"tag_name":     tag,
 		"body":         "Release notes for " + tag,
 		"published_at": "2024-06-01T00:00:00Z",
-		"assets":       assets,
 	}
 	b, _ := json.Marshal(payload)
 	return b
@@ -57,32 +38,18 @@ func buildReleaseJSON(tag string, withBundled bool) []byte {
 
 // TestCheckForUpdates covers four distinct scenarios via table-driven subtests.
 func TestCheckForUpdates(t *testing.T) {
-	arch := runtime.GOARCH
-	if arch == "amd64" {
-		arch = "x64"
-	} else if arch == "386" {
-		arch = "x86"
-	}
-	prefix := fmt.Sprintf("install-it.%s-%s", runtime.GOOS, arch)
-	stdURL := "http://dl.example.com/" + prefix + ".zip"
-	bundleURL := "http://dl.example.com/" + prefix + "-bundled.zip"
-
 	tests := []struct {
 		name             string
 		localVer         string
 		remoteTag        string
 		preferPreRelease bool
-		preferBundled    bool
-		withBundled      bool
 		wantHasUpdate    bool
-		wantDownloadURL  string
 	}{
 		{
-			name:            "stable: remote newer triggers update",
-			localVer:        "1.0.0",
-			remoteTag:       "v1.1.0",
-			wantHasUpdate:   true,
-			wantDownloadURL: stdURL,
+			name:          "stable: remote newer triggers update",
+			localVer:      "1.0.0",
+			remoteTag:     "v1.1.0",
+			wantHasUpdate: true,
 		},
 		{
 			name:          "stable: local >= remote means no update",
@@ -96,23 +63,33 @@ func TestCheckForUpdates(t *testing.T) {
 			remoteTag:        "v2.0.0-beta.1",
 			preferPreRelease: true,
 			wantHasUpdate:    true,
-			wantDownloadURL:  stdURL,
 		},
 		{
-			name:            "bundled asset preferred when preferBundled=true and available",
-			localVer:        "1.0.0",
-			remoteTag:       "v1.2.0",
-			preferBundled:   true,
-			withBundled:     true,
-			wantHasUpdate:   true,
-			wantDownloadURL: bundleURL,
+			name:          "release metadata without assets still works",
+			localVer:      "1.0.0",
+			remoteTag:     "v1.2.0",
+			wantHasUpdate: true,
+		},
+		{
+			name:             "pre-release: newer prerelease triggers update",
+			localVer:         "5.6.0-beta.2",
+			remoteTag:        "v5.6.0-beta.3",
+			preferPreRelease: true,
+			wantHasUpdate:    true,
+		},
+		{
+			name:             "pre-release: local prerelease > remote stable",
+			localVer:         "5.6.0-beta.3",
+			remoteTag:        "v5.5.0",
+			preferPreRelease: false,
+			wantHasUpdate:    false,
 		},
 	}
 
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			releaseJSON := buildReleaseJSON(tc.remoteTag, tc.withBundled)
+			releaseJSON := buildReleaseJSON(tc.remoteTag)
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
@@ -130,18 +107,12 @@ func TestCheckForUpdates(t *testing.T) {
 				apiBase: srv.URL,
 			}
 
-			result, err := u.CheckForUpdates(tc.preferBundled, tc.preferPreRelease)
+			result, err := u.CheckForUpdates(tc.preferPreRelease)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if result.HasUpdate != tc.wantHasUpdate {
 				t.Errorf("HasUpdate = %v, want %v", result.HasUpdate, tc.wantHasUpdate)
-			}
-			if tc.wantDownloadURL != "" && result.DownloadUrl != tc.wantDownloadURL {
-				t.Errorf("DownloadUrl = %q, want %q", result.DownloadUrl, tc.wantDownloadURL)
-			}
-			if tc.withBundled && result.DownloadUrlBundled != bundleURL {
-				t.Errorf("DownloadUrlBundled = %q, want %q", result.DownloadUrlBundled, bundleURL)
 			}
 		})
 	}
@@ -173,9 +144,10 @@ func TestExtractZipToDir(t *testing.T) {
 		defer os.RemoveAll(tmpDir)
 
 		data := makeZip(t, map[string]string{
-			"file.txt":          "hello",
-			"sub/nested.txt":    "world",
-			"sub/deep/data.bin": "binary",
+			"install-it.exe":              "binary",
+			"internals/app.txt":           "hello",
+			"internals/sub/nested.txt":    "world",
+			"internals/sub/deep/data.bin": "binary",
 		})
 		zipPath := filepath.Join(tmpDir, "test.zip")
 		os.WriteFile(zipPath, data, 0644)
@@ -186,9 +158,10 @@ func TestExtractZipToDir(t *testing.T) {
 		}
 
 		checks := map[string]string{
-			filepath.Join(destDir, "file.txt"):                "hello",
-			filepath.Join(destDir, "sub", "nested.txt"):       "world",
-			filepath.Join(destDir, "sub", "deep", "data.bin"): "binary",
+			filepath.Join(destDir, "install-it.exe"):                       "binary",
+			filepath.Join(destDir, "internals", "app.txt"):                 "hello",
+			filepath.Join(destDir, "internals", "sub", "nested.txt"):       "world",
+			filepath.Join(destDir, "internals", "sub", "deep", "data.bin"): "binary",
 		}
 		for path, want := range checks {
 			got, err := os.ReadFile(path)
@@ -233,4 +206,90 @@ func TestExtractZipToDir(t *testing.T) {
 			t.Error("zip-slip file was created outside destDir")
 		}
 	})
+}
+
+// TestCheckForUpdates_Non200ReturnsErrInfoUnavailable verifies that a non-200
+// GitHub API response (403/404/rate-limit) surfaces as errUpdateInfoUnavailable
+// instead of being decoded as "no update".
+func TestCheckForUpdates_Non200ReturnsErrInfoUnavailable(t *testing.T) {
+	for _, prerelease := range []bool{false, true} {
+		name := "stable"
+		if prerelease {
+			name = "pre-release"
+		}
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.NotFound(w, r)
+			}))
+			defer srv.Close()
+
+			u := &Updater{Version: mustVer("1.0.0"), apiBase: srv.URL}
+			_, err := u.CheckForUpdates(prerelease)
+			if err == nil {
+				t.Fatal("expected error for 404 response, got nil")
+			}
+			if !strings.Contains(err.Error(), "errUpdateInfoUnavailable") {
+				t.Errorf("error %q should carry errUpdateInfoUnavailable code", err.Error())
+			}
+		})
+	}
+}
+
+// TestCheckForUpdates_TimeoutConfigurable verifies the default HTTP client
+// carries the 30s timeout and that an injected client override is honored.
+func TestCheckForUpdates_TimeoutConfigurable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+
+	u := &Updater{apiBase: srv.URL}
+	if _, err := u.httpGet(u.releasesURL(true)); err != nil {
+		t.Fatalf("httpGet: %v", err)
+	}
+	if got := u.client.Timeout; got != 30*time.Second {
+		t.Errorf("default client timeout = %v, want %v", got, 30*time.Second)
+	}
+
+	custom := &http.Client{Timeout: 5 * time.Second}
+	u.client = custom
+	if _, err := u.httpGet(u.releasesURL(true)); err != nil {
+		t.Fatalf("httpGet with custom client: %v", err)
+	}
+	if got := u.client; got != custom {
+		t.Errorf("injected client not honored: got %v", got)
+	}
+}
+
+// TestExtractZipToDir_PassesThroughUnknownRoots verifies that unknown root
+// entries are extracted as-is: the apply phase only deploys internals/, and
+// the stage dir is scrubbed afterwards, so there is no need to reject them.
+func TestExtractZipToDir_PassesThroughUnknownRoots(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "extract-root-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	data := makeZip(t, map[string]string{
+		"rogue.txt":         "pwned",
+		"internals/app.txt": "hello",
+	})
+	zipPath := filepath.Join(tmpDir, "rogue.zip")
+	os.WriteFile(zipPath, data, 0644)
+
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := extractZipToDir(zipPath, destDir); err != nil {
+		t.Fatalf("extractZipToDir: %v", err)
+	}
+
+	// Unknown root entry is extracted as-is.
+	if got, err := os.ReadFile(filepath.Join(destDir, "rogue.txt")); err != nil {
+		t.Errorf("rogue.txt not extracted: %v", err)
+	} else if string(got) != "pwned" {
+		t.Errorf("rogue.txt = %q, want %q", got, "pwned")
+	}
+
+	// Legit internals/ is extracted too.
+	if _, err := os.Stat(filepath.Join(destDir, "internals", "app.txt")); err != nil {
+		t.Errorf("internals/app.txt not extracted: %v", err)
+	}
 }

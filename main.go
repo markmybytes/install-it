@@ -61,7 +61,6 @@ func init() {
 
 	// process Updates
 	updater = &update.Updater{DirRoot: dirRoot, Version: version}
-	updater.CheckAndApplyUpdates()
 
 	dirConf = filepath.Join(dirRoot, "conf")
 	os.MkdirAll(dirConf, os.ModePerm)
@@ -69,11 +68,6 @@ func init() {
 	dirDir = filepath.Join(dirRoot, "drivers")
 	for _, sub := range []string{"network", "display", "miscellaneous"} {
 		os.MkdirAll(filepath.Join(dirDir, sub), os.ModePerm)
-	}
-
-	pathWV2 = filepath.Join(dirRoot, "internals", "bin", "WebView2")
-	if _, err := os.Stat(pathWV2); err != nil {
-		pathWV2 = ""
 	}
 }
 
@@ -110,6 +104,15 @@ func main() {
 		},
 	}
 
+	// Apply before Wails starts: this process has not loaded WebView2 yet. The
+	// previous process's WebView2 children can survive os.Exit briefly, so the
+	// updater retries directory handoff instead of deleting live internals.
+	update.ApplyStagedUpdates(dirRoot)
+	pathWV2 = filepath.Join(dirRoot, "internals", "bin", "WebView2")
+	if _, err := os.Stat(pathWV2); err != nil {
+		pathWV2 = ""
+	}
+
 	err = wails.Run(&options.App{
 		Title:     "install-it",
 		Width:     768,
@@ -128,12 +131,6 @@ func main() {
 			return err.Error() // unmigrated/raw errors fall back to plain string
 		},
 		OnStartup: func(ctx context.Context) {
-			// Fail-safe cleanup
-			oldBin := filepath.Join(dirRoot, "install-it.exe.old")
-			if _, err := os.Stat(oldBin); err == nil {
-				os.Remove(oldBin)
-			}
-
 			// Working directory correction
 			if cwd, err := os.Getwd(); err == nil {
 				if pathExe, err := os.Executable(); err == nil && cwd != filepath.Dir(pathExe) {

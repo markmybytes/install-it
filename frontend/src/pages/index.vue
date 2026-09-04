@@ -233,11 +233,7 @@ onBeforeUnmount(() => {
             </UBadge>
           </h2>
 
-          <p
-            v-for="(name, i) in names"
-            :key="i"
-            class="text-sm"
-          >
+          <p v-for="(name, i) in names" :key="i" class="text-sm">
             {{ name }}
           </p>
         </div>

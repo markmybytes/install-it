@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { AppVersion } from '@/wailsjs/go/main/App'
 import * as appSettingStorage from '@/wailsjs/go/storage/AppSettingStorage'
 import * as driverGroupStorage from '@/wailsjs/go/storage/DriverGroupStorage'
 import * as ruleSetStorage from '@/wailsjs/go/storage/RuleSetStorage'
+import { CheckForUpdates } from '@/wailsjs/go/update/Updater'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RouteLocationRaw } from 'vue-router'
 import { decodeError } from '@/utils/index'
-import { latestRelease } from './utils'
 
 const { t, locale } = useI18n()
 
@@ -46,14 +45,12 @@ Promise.all([
   .then(() => {
     setTimeout(() => {
       if (settingsStore.settings.auto_check_update) {
-        return AppVersion().then(version =>
-          latestRelease(version).then(release => {
-            hasUpdate.value = release.hasUpdate
-            if (release.hasUpdate) {
-              toast.add({ title: t('msgUpdateAvailable'), color: 'info', duration: 1000 })
-            }
-          })
-        )
+        return CheckForUpdates(settingsStore.settings.allow_pre_release).then(result => {
+          hasUpdate.value = result.hasUpdate
+          if (result.hasUpdate) {
+            toast.add({ title: t('msgUpdateAvailable'), color: 'info', duration: 1000 })
+          }
+        })
       }
     }, 1000)
   })
