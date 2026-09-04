@@ -31,13 +31,20 @@ const (
 	errorSuccessRebootRequired = 3010
 )
 
-// Init installs PawnIO if absent and opens the driver device, loading the
+// initDriver installs PawnIO if absent and opens the driver device, loading the
 // module for the detected CPU vendor. Never uninstalls. No RunOnce, no
 // marker file — the registry uninstall key is the only install check.
 //
-// On any failure the error is logged to stderr and returned; ready stays
-// false and IsAvailable() reports false, so the app degrades silently.
-func Init(exeDir string) error {
+// On any failure the error is logged to stderr and lifecycle becomes
+// unavailable, so the app degrades silently.
+func initDriver(exeDir string) error {
+	succeeded := false
+	defer func() {
+		if !succeeded {
+			lifecycle.Store(lifecycleUnavailable)
+		}
+	}()
+
 	installer, intelMSR, ryzenSMU, err := resolveAssets(exeDir)
 	if err != nil {
 		return fail(errcode.New("errCPUTempInitFailed"))
@@ -69,8 +76,8 @@ func Init(exeDir string) error {
 		err = loadModule(handle, ryzenSMU)
 	default:
 		// Unknown vendor — no module to load. Close the handle and return
-		// without setting ready: IsAvailable() stays false, CPUTemperature()
-		// returns -1, badge hidden. No speculative vendor code.
+		// without setting lifecycle available: CPUTemperature() reports unavailable.
+		// No speculative vendor code.
 		windows.CloseHandle(handle)
 		return nil
 	}
@@ -80,7 +87,8 @@ func Init(exeDir string) error {
 	}
 
 	drvHandle.Store(uintptr(handle))
-	ready.Store(true) // LAST — gates all readers
+	succeeded = true
+	lifecycle.Store(lifecycleAvailable) // LAST — gates all readers
 	return nil
 }
 

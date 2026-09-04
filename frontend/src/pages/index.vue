@@ -2,13 +2,13 @@
 import CommandStatueModal from '@/components/CommandStatusModal.vue'
 import { type Command } from '@/types/execute'
 import * as utils from '@/utils'
+import { decodeError } from '@/utils/index'
 import * as executor from '@/wailsjs/go/execute/CommandExecutor'
 import * as matcher from '@/wailsjs/go/matching/Matcher'
 import { sysinfo } from '@/wailsjs/go/models'
 import * as sysinfoApi from '@/wailsjs/go/sysinfo/SysInfo'
 import { computed, onBeforeMount, onBeforeUnmount, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { decodeError } from '@/utils/index'
 
 const { t } = useI18n()
 
@@ -53,28 +53,40 @@ onBeforeMount(() => {
   loadSystemInfo()
 
   if (settingStore.settings.enable_cpu_temp) {
+    const showTempError = (err: unknown) => {
+      const message = decodeError(err, t)
+      cpuTempError.value = message
+      if (!tempToasted.value) {
+        // Color = 'warning' for warn* codes (per handoff §3.3 prefix guidance)
+        const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : ''
+        const color = code.startsWith('warn') ? 'warning' : 'error'
+        toast.add({ title: message, color })
+        tempToasted.value = true
+      }
+    }
+
     const tick = () =>
       sysinfoApi
         .CPUTemperature()
-        .then(t => {
-          cpuTempError.value = null
-          cpuTemp.value = Math.round(t)
-        })
-        .catch(err => {
-          cpuTempError.value = decodeError(err, t)
-          if (!tempToasted.value) {
-            // Color = 'warning' for warn* codes (per handoff §3.3 prefix guidance)
-            const color = String(err?.code ?? '').startsWith('warn') ? 'warning' : 'error'
-            toast.add({ title: decodeError(err, t), color })
-            tempToasted.value = true
+        .then(result => {
+          if (result.status === 'initializing' || result.status === 'not_started') {
+            return
           }
-          // stop polling on permanent failure: timer = null (only if code is permanent; for now leave polling alone)
+
+          if (result.status === 'unavailable') {
+            showTempError({ code: 'warnCPUTempUnavailable' })
+            return
+          }
+          cpuTempError.value = null
+          cpuTemp.value = Math.round(result.temperature)
         })
+        .catch(showTempError)
         .finally(() => {
           if (timer === null) return
           const secs = Math.max(1, Number(settingStore.settings.cpu_temp_refresh_interval) || 5)
           timer = setTimeout(tick, secs * 1000)
         })
+
     timer = setTimeout(tick, 0)
   }
 })

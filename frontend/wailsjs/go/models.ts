@@ -312,6 +312,20 @@ export namespace storage {
 
 export namespace sysinfo {
 	
+	export class CPUTemperatureResult {
+	    status: string;
+	    temperature: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CPUTemperatureResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.temperature = source["temperature"];
+	    }
+	}
 	export class OSInfo {
 	    caption: string;
 	    displayVersion: string;
