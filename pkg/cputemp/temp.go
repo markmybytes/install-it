@@ -27,9 +27,9 @@ var (
 
 // GetCPUTemperatures reads the current CPU temperature(s) via the loaded
 // PawnIO module. Returns a nil slice and nil error when unavailable
-// (Init not done, unknown vendor, or no handle).
+// (initialization not done, unknown vendor, or no handle).
 func GetCPUTemperatures() ([]CPUTemp, error) {
-	if !ready.Load() {
+	if lifecycle.Load() != lifecycleAvailable {
 		return nil, nil
 	}
 	handle := windows.Handle(drvHandle.Load())

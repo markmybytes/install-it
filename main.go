@@ -113,6 +113,10 @@ func main() {
 		pathWV2 = ""
 	}
 
+	if s, err := appSettings.All(); err == nil && s.EnableCPUTemp {
+		cputemp.Start(dirRoot)
+	}
+
 	err = wails.Run(&options.App{
 		Title:     "install-it",
 		Width:     768,
@@ -143,10 +147,6 @@ func main() {
 
 			app.SetContext(ctx)
 			mgt.SetContext(ctx)
-
-			if s, err := appSettings.All(); err == nil && s.EnableCPUTemp {
-				go cputemp.Init(dirRoot)
-			}
 		},
 		Bind: []interface{}{
 			app,

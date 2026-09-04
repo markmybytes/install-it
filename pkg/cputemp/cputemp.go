@@ -1,7 +1,7 @@
 // Package cputemp reads CPU die temperature via the PawnIO kernel driver
 // (namazso, the driver LibreHardwareMonitor/FanControl use internally).
 //
-// Windows-only. Init() installs PawnIO if absent, opens the device and loads
+// Windows-only. Start() installs PawnIO if absent, opens the device and loads
 // the module for the detected CPU vendor (IntelMSR.bin / RyzenSMU.bin).
 // GetCPUTemperatures() then reads MSR/SMU registers via IOCTLs.
 package cputemp
@@ -37,13 +37,20 @@ type CPUTemp struct {
 	Value float64 // °C
 }
 
-// Package-level driver state. Init runs in a goroutine while
-// GetCPUTemperatures is polled, so every field is atomic. ready is set
-// LAST in Init and gates all readers.
+// Package-level driver state. initDriver runs in a goroutine while
+// GetCPUTemperatures is polled, so every field is atomic. lifecycle is set
+// after initialization finishes and gates all readers.
 var (
 	drvHandle atomic.Uintptr // PawnIO device handle; 0 = none
 	cpuVendor atomic.Int32   // vendorUnknown / vendorIntel / vendorAMD
-	ready     atomic.Bool    // true only after Init completed successfully
+	lifecycle atomic.Int32   // lifecycleNotStarted / lifecycleInitializing / lifecycleUnavailable / lifecycleAvailable
+)
+
+const (
+	lifecycleNotStarted int32 = iota
+	lifecycleInitializing
+	lifecycleUnavailable
+	lifecycleAvailable
 )
 
 // executeFn invokes a PawnIO module function via IOCTL_PIO_EXECUTE_FN.
@@ -90,8 +97,22 @@ func detectVendor() int32 {
 	return vendorUnknown
 }
 
-// IsAvailable returns true if the driver is open, a module is loaded, and
-// Init completed successfully.
-func IsAvailable() bool {
-	return ready.Load()
+// Status reports the CPU temperature setup state.
+func Status() string {
+	switch lifecycle.Load() {
+	case lifecycleInitializing:
+		return "initializing"
+	case lifecycleUnavailable:
+		return "unavailable"
+	case lifecycleAvailable:
+		return "available"
+	default:
+		return "not_started"
+	}
+}
+
+// Start marks initialization synchronously before launching it asynchronously.
+func Start(exeDir string) {
+	lifecycle.Store(lifecycleInitializing)
+	go initDriver(exeDir)
 }

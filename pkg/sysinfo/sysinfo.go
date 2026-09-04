@@ -30,6 +30,13 @@ type OSInfo struct {
 	Activated      bool   `json:"activated"`
 }
 
+// CPUTemperatureResult carries CPU temperature setup state and, when
+// available, the current CPU package temperature in °C.
+type CPUTemperatureResult struct {
+	Status      string  `json:"status"`
+	Temperature float64 `json:"temperature"`
+}
+
 type SysInfo struct{}
 
 // resolveDeviceNames returns human-readable names for PnP devices matching
@@ -134,19 +141,20 @@ func (i SysInfo) OSInfo() (*OSInfo, error) {
 }
 
 // CPUTemperature returns the current CPU package temperature in °C via PawnIO.
-// Returns an error (not a sentinel value) when unavailable.
+// Setup states before available are returned without an error.
 //
 // IOCTL read only, no WMI queries.
-func (i SysInfo) CPUTemperature() (float64, error) {
-	if !cputemp.IsAvailable() {
-		return 0, errcode.New("warnCPUTempUnavailable")
+func (i SysInfo) CPUTemperature() (CPUTemperatureResult, error) {
+	result := CPUTemperatureResult{Status: cputemp.Status()}
+	if result.Status != "available" {
+		return result, nil
 	}
 	temps, err := cputemp.GetCPUTemperatures()
 	if err != nil {
-		return 0, errcode.New("warnCPUTempReadFailed")
+		return result, errcode.New("warnCPUTempReadFailed")
 	}
 	if len(temps) == 0 {
-		return 0, errcode.New("warnCPUTempNoReadings")
+		return result, errcode.New("warnCPUTempNoReadings")
 	}
 	var max float64
 	for _, t := range temps {
@@ -154,7 +162,8 @@ func (i SysInfo) CPUTemperature() (float64, error) {
 			max = t.Value
 		}
 	}
-	return max, nil
+	result.Temperature = max
+	return result, nil
 }
 
 // resolveOS returns structured OS data. Returns nil when no Caption is
