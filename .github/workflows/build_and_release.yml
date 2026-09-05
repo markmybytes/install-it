@@ -75,21 +75,17 @@ jobs:
           Remove-Item -Recurse -Force ext
           Remove-Item -Force webview2.nupkg
 
-      - name: Download PCI ID database
+      - name: Download internal data files
         run: |
-          Set-Location build\bin
-          New-Item -ItemType Directory -Force -Path internals\data | Out-Null
-          Invoke-WebRequest -Uri https://pci-ids.ucw.cz/v2.2/pci.ids.gz -OutFile internals\data\pci.ids.gz
-
-      - name: Download PawnIO driver and modules
-        run: |
-          curl -sL -o "build\bin\internals\data\PawnIO_setup.exe" "https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe"
-          curl -sL -o "build\bin\internals\data\pawnio_modules.zip" "https://github.com/namazso/PawnIO.Modules/releases/download/0.2.10/release_0_2_10.zip"
-          Expand-Archive -Path "build\bin\internals\data\pawnio_modules.zip" -DestinationPath "build\bin\internals\data\pawnio_modules" -Force
-          Move-Item "build\bin\internals\data\pawnio_modules\IntelMSR.bin" "build\bin\internals\data\IntelMSR.bin"
-          Move-Item "build\bin\internals\data\pawnio_modules\RyzenSMU.bin" "build\bin\internals\data\RyzenSMU.bin"
-          Remove-Item "build\bin\internals\data\pawnio_modules.zip"
-          Remove-Item -Recurse "build\bin\internals\data\pawnio_modules"
+          $d = "build\bin\internals\data"
+          New-Item -ItemType Directory -Force -Path $d | Out-Null
+          Invoke-WebRequest -Uri https://pci-ids.ucw.cz/v2.2/pci.ids.gz -OutFile "$d\pci.ids.gz"
+          Invoke-WebRequest -Uri https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe -OutFile "$d\PawnIO_setup.exe"
+          Invoke-WebRequest -Uri https://github.com/namazso/PawnIO.Modules/releases/download/0.2.10/release_0_2_10.zip -OutFile "$d\pawnio_modules.zip"
+          Expand-Archive -Path "$d\pawnio_modules.zip" -DestinationPath "$d\pawnio_modules" -Force
+          Move-Item "$d\pawnio_modules\IntelMSR.bin", "$d\pawnio_modules\RyzenSMU.bin" $d
+          Remove-Item "$d\pawnio_modules.zip"
+          Remove-Item -Recurse "$d\pawnio_modules"
 
       - name: Bundle binary and WebView2 files into ZIP
         run: |
