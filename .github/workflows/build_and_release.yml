@@ -20,9 +20,6 @@ jobs:
       BUILD_NAME: windows-x64
       WV2_ARCH: x64
       WV2_VERSION: "151.0.4129.107"
-    strategy:
-      matrix:
-        goarch: amd64
 
     steps:
       - name: Checkout repository
@@ -49,9 +46,9 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build binary for Windows (${{ matrix.goarch }})
+      - name: Build binary for Windows (amd64)
         env:
-          GOARCH: ${{ matrix.goarch }}
+          GOARCH: amd64
         run: |
           wails build -ldflags "-X main.buildVersion=${{ github.ref_name }}"
 
@@ -87,7 +84,7 @@ jobs:
       - name: Collect artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: binary-${{ matrix.goarch }}
+          name: binary-amd64
           path: build/bin/*.zip
 
   build-updater:
@@ -95,9 +92,6 @@ jobs:
     runs-on: windows-latest
     env:
       BUILD_NAME: windows-x64
-    strategy:
-      matrix:
-        architecture: x64
 
     steps:
       - name: Checkout updater repository
@@ -109,7 +103,7 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-          architecture: ${{ matrix.architecture }}
+          architecture: x64
           cache: pip
           cache-dependency-path: requirements.txt
 
@@ -130,7 +124,7 @@ jobs:
       - name: Upload updater artifact
         uses: actions/upload-artifact@v7
         with:
-          name: updater-${{ matrix.architecture }}
+          name: updater-x64
           path: dist/updater.${{ env.BUILD_NAME }}.exe
 
   release:
