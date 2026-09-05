@@ -19,6 +19,7 @@ jobs:
     env:
       BUILD_NAME: ${{ matrix.goarch == '386' && 'windows-x86' || 'windows-x64' }}
       WV2_ARCH: ${{ matrix.goarch == '386' && 'x86' || 'x64' }}
+      WV2_VERSION: "151.0.4129.107"
     strategy:
       matrix:
         goarch: ["386", amd64]
@@ -44,7 +45,6 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'frontend/package-lock.json'
 
-
       - name: Install NPM dependencies
         working-directory: frontend
         run: npm ci
@@ -58,7 +58,7 @@ jobs:
       - name: Download and extract WebView2 runtime
         working-directory: build/bin
         run: |
-          curl -o webview2.nupkg -L "https://globalcdn.nuget.org/packages/webview2.runtime.${{ env.WV2_ARCH }}.151.0.4129.107.nupkg?packageVersion=151.0.4129.107"
+          curl -o webview2.nupkg -L "https://globalcdn.nuget.org/packages/webview2.runtime.${{ env.WV2_ARCH }}.${{ env.WV2_VERSION }}.nupkg?packageVersion=${{ env.WV2_VERSION }}"
           New-Item -ItemType Directory -Force -Path internals\bin | Out-Null
           7z x webview2.nupkg -oext -y
           Move-Item -Force ext\contentFiles\any\any\WebView2 internals\bin\WebView2
