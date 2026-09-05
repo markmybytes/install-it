@@ -50,9 +50,8 @@ jobs:
 
 
       - name: Install NPM dependencies
-        run: |
-          cd frontend
-          npm ci
+        working-directory: frontend
+        run: npm ci
 
       - name: Build binary for Windows (${{ matrix.goarch }})
         env:
@@ -61,8 +60,8 @@ jobs:
           wails build -ldflags "-X main.buildVersion=${{ github.ref_name }}"
 
       - name: Download and extract WebView2 runtime
+        working-directory: build/bin
         run: |
-          Set-Location build\bin
           curl -o webview2.nupkg -L "https://globalcdn.nuget.org/packages/webview2.runtime.${{ matrix.wv2arch }}.151.0.4129.107.nupkg?packageVersion=151.0.4129.107"
           New-Item -ItemType Directory -Force -Path internals\bin | Out-Null
           7z x webview2.nupkg -oext -y
@@ -71,8 +70,9 @@ jobs:
           Remove-Item -Force webview2.nupkg
 
       - name: Download internal data files
+        working-directory: build/bin
         run: |
-          $d = "build\bin\internals\data"
+          $d = "internals\data"
           New-Item -ItemType Directory -Force -Path $d | Out-Null
           Invoke-WebRequest -Uri https://pci-ids.ucw.cz/v2.2/pci.ids.gz -OutFile "$d\pci.ids.gz"
           Invoke-WebRequest -Uri https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe -OutFile "$d\PawnIO_setup.exe"
@@ -83,8 +83,8 @@ jobs:
           Remove-Item -Recurse "$d\pawnio_modules"
 
       - name: Bundle binary and WebView2 files into ZIP
+        working-directory: build/bin
         run: |
-          cd build\bin
           7z a install-it.${{ matrix.build-name }}.zip install-it.exe internals\data -mx8
           7z a install-it.${{ matrix.build-name }}-bundled.zip install-it.exe internals -mx8
 
