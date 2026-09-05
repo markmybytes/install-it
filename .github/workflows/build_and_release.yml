@@ -65,14 +65,15 @@ jobs:
           wails build -ldflags "-X main.buildVersion=${{ github.ref_name }}"
 
       - name: Download and extract WebView2 runtime
+        shell: pwsh
         run: |
-          cd build\bin
+          Set-Location build\bin
           curl -o webview2.nupkg -L "https://globalcdn.nuget.org/packages/webview2.runtime.${{ matrix.wv2arch }}.151.0.4129.107.nupkg?packageVersion=151.0.4129.107"
-          mkdir internals\bin
+          New-Item -ItemType Directory -Force -Path internals\bin | Out-Null
           7z x webview2.nupkg -oext -y
-          move ext\contentFiles\any\any\WebView2 internals\bin\WebView2
-          rmdir /s /q ext
-          del webview2.nupkg
+          Move-Item -Force ext\contentFiles\any\any\WebView2 internals\bin\WebView2
+          Remove-Item -Recurse -Force ext
+          Remove-Item -Force webview2.nupkg
 
       - name: Download PCI ID database
         run: |
