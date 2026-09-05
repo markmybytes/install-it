@@ -54,11 +54,6 @@ jobs:
           cd frontend
           npm ci
 
-      - name: Install UPX
-        uses: crazy-max/ghaction-upx@v4
-        with:
-          install-only: true
-
       - name: Build binary for Windows (${{ matrix.goarch }})
         env:
           GOARCH: ${{ matrix.goarch }}
