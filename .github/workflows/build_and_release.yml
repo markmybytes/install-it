@@ -16,16 +16,10 @@ jobs:
   build:
     needs: test
     runs-on: windows-latest
-    strategy:
-      matrix:
-        goarch: ["386", amd64]
-        include:
-          - goarch: "386"
-            build-name: windows-x86
-            wv2arch: x86
-          - goarch: amd64
-            build-name: windows-x64
-            wv2arch: x64
+    env:
+      BUILD_NAME: windows-x64
+      WV2_ARCH: x64
+      WV2_VERSION: "151.0.4129.107"
 
     steps:
       - name: Checkout repository
@@ -48,73 +42,56 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'frontend/package-lock.json'
 
-
       - name: Install NPM dependencies
-        run: |
-          cd frontend
-          npm ci
+        working-directory: frontend
+        run: npm ci
 
-      - name: Install UPX
-        uses: crazy-max/ghaction-upx@v4
-        with:
-          install-only: true
-
-      - name: Build binary for Windows (${{ matrix.goarch }})
+      - name: Build binary for Windows (amd64)
+        env:
+          GOARCH: amd64
         run: |
-          set GOARCH=${{ matrix.goarch }}
           wails build -ldflags "-X main.buildVersion=${{ github.ref_name }}"
 
       - name: Download and extract WebView2 runtime
-        shell: pwsh
+        working-directory: build/bin
         run: |
-          Set-Location build\bin
-          curl -o webview2.nupkg -L "https://globalcdn.nuget.org/packages/webview2.runtime.${{ matrix.wv2arch }}.151.0.4129.107.nupkg?packageVersion=151.0.4129.107"
+          curl -o webview2.nupkg -L "https://globalcdn.nuget.org/packages/webview2.runtime.${{ env.WV2_ARCH }}.${{ env.WV2_VERSION }}.nupkg?packageVersion=${{ env.WV2_VERSION }}"
           New-Item -ItemType Directory -Force -Path internals\bin | Out-Null
           7z x webview2.nupkg -oext -y
           Move-Item -Force ext\contentFiles\any\any\WebView2 internals\bin\WebView2
           Remove-Item -Recurse -Force ext
           Remove-Item -Force webview2.nupkg
 
-      - name: Download PCI ID database
+      - name: Download internal data files
+        working-directory: build/bin
         run: |
-          cd build\bin
-          mkdir internals\data
-          curl -sL -o internals\data\pci.ids.gz https://pci-ids.ucw.cz/v2.2/pci.ids.gz
-
-      - name: Download PawnIO driver and modules
-        shell: pwsh
-        run: |
-          curl -sL -o "build\bin\internals\data\PawnIO_setup.exe" "https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe"
-          curl -sL -o "build\bin\internals\data\pawnio_modules.zip" "https://github.com/namazso/PawnIO.Modules/releases/download/0.2.10/release_0_2_10.zip"
-          Expand-Archive -Path "build\bin\internals\data\pawnio_modules.zip" -DestinationPath "build\bin\internals\data\pawnio_modules" -Force
-          Move-Item "build\bin\internals\data\pawnio_modules\IntelMSR.bin" "build\bin\internals\data\IntelMSR.bin"
-          Move-Item "build\bin\internals\data\pawnio_modules\RyzenSMU.bin" "build\bin\internals\data\RyzenSMU.bin"
-          Remove-Item "build\bin\internals\data\pawnio_modules.zip"
-          Remove-Item -Recurse "build\bin\internals\data\pawnio_modules"
+          $d = "internals\data"
+          New-Item -ItemType Directory -Force -Path $d | Out-Null
+          Invoke-WebRequest -Uri https://pci-ids.ucw.cz/v2.2/pci.ids.gz -OutFile "$d\pci.ids.gz"
+          Invoke-WebRequest -Uri https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe -OutFile "$d\PawnIO_setup.exe"
+          Invoke-WebRequest -Uri https://github.com/namazso/PawnIO.Modules/releases/download/0.2.10/release_0_2_10.zip -OutFile "$d\pawnio_modules.zip"
+          Expand-Archive -Path "$d\pawnio_modules.zip" -DestinationPath "$d\pawnio_modules" -Force
+          Move-Item "$d\pawnio_modules\IntelMSR.bin", "$d\pawnio_modules\RyzenSMU.bin" $d
+          Remove-Item "$d\pawnio_modules.zip"
+          Remove-Item -Recurse "$d\pawnio_modules"
 
       - name: Bundle binary and WebView2 files into ZIP
+        working-directory: build/bin
         run: |
-          cd build\bin
-          7z a install-it.${{ matrix.build-name }}.zip install-it.exe internals\data -mx8
-          7z a install-it.${{ matrix.build-name }}-bundled.zip install-it.exe internals -mx8
+          7z a install-it.${{ env.BUILD_NAME }}.zip install-it.exe internals\data -mx8
+          7z a install-it.${{ env.BUILD_NAME }}-bundled.zip install-it.exe internals -mx8
 
       - name: Collect artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: binary-${{ matrix.goarch }}
+          name: binary-amd64
           path: build/bin/*.zip
 
   build-updater:
     needs: test
     runs-on: windows-latest
-    strategy:
-      matrix:
-        architecture: [x86, x64]
-        include:
-          - architecture: x86
-            build-name: windows-x86
-          - architecture: x64
-            build-name: windows-x64
+    env:
+      BUILD_NAME: windows-x64
 
     steps:
       - name: Checkout updater repository
@@ -126,7 +103,7 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-          architecture: ${{ matrix.architecture }}
+          architecture: x64
           cache: pip
           cache-dependency-path: requirements.txt
 
@@ -142,13 +119,13 @@ jobs:
 
       - name: Build the executable
         run: |
-          pyinstaller .\src\main.py -cDF -n updater.${{ matrix.build-name }} -i .\icon.ico
+          pyinstaller .\src\main.py -cDF -n updater.${{ env.BUILD_NAME }} -i .\icon.ico
 
       - name: Upload updater artifact
         uses: actions/upload-artifact@v7
         with:
-          name: updater-${{ matrix.architecture }}
-          path: dist/updater.${{ matrix.build-name }}.exe
+          name: updater-x64
+          path: dist/updater.${{ env.BUILD_NAME }}.exe
 
   release:
     needs: [build, build-updater]
