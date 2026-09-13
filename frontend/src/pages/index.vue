@@ -3,6 +3,7 @@ import CommandStatueModal from '@/components/CommandStatusModal.vue'
 import { type Command } from '@/types/execute'
 import * as utils from '@/utils'
 import { decodeError } from '@/utils/index'
+import { expandIncompat } from '@/utils/scheduler'
 import * as executor from '@/wailsjs/go/execute/CommandExecutor'
 import * as matcher from '@/wailsjs/go/matching/Matcher'
 import { sysinfo } from '@/wailsjs/go/models'
@@ -119,7 +120,7 @@ function resetSelection() {
 }
 
 async function handleSubmit() {
-  const commands: Array<Command> = []
+  let commands: Array<Command> = []
 
   if (settingStore.settings.set_password) {
     commands.push({
@@ -186,23 +187,7 @@ async function handleSubmit() {
       })
     })
 
-  // Expand incompatibilities for mutually-exclusive driver groups
-  commands.forEach(cmd => {
-    // Find which group this driver belongs to
-    const driverGroup = groupStore.groups.find(g => g.drivers.some(d => d.id === cmd.id))
-
-    // If the group is marked as mutually exclusive, add all other drivers in that group as incompatible
-    if (driverGroup?.mutuallyExclusive) {
-      const otherDriverIds = driverGroup.drivers.filter(d => d.id !== cmd.id).map(d => d.id)
-
-      // Add other drivers to incompatibles, avoiding duplicates
-      otherDriverIds.forEach(id => {
-        if (!cmd.config.incompatibles.includes(id)) {
-          cmd.config.incompatibles.push(id)
-        }
-      })
-    }
-  })
+  commands = expandIncompat(commands, groupStore.groups)
 
   if (commands.length == 0) {
     toast.add({ title: t('warnNoInputWarning'), color: 'warning' })

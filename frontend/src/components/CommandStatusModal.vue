@@ -4,6 +4,7 @@ import * as executor from '@/wailsjs/go/execute/CommandExecutor'
 import { status } from '@/wailsjs/go/models'
 import * as runtime from '@/wailsjs/runtime/runtime'
 import { decodeError } from '@/utils/index'
+import { schedule, type CommandId, type ProcessStatus } from '@/utils/scheduler'
 import AsyncLock from 'async-lock'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -73,19 +74,17 @@ function getProcessName(process: Process) {
 
 async function dispatchCommand() {
   lock.acquire('executor', async () => {
-    const pendings = processes.value
-      .filter(c => c.status === 'pending')
-      .slice(0, isParallel ? undefined : 1)
+    const statusById = new Map<CommandId, ProcessStatus>(
+      processes.value.map(p => [p.command.id, p.status])
+    )
+    const { wave } = schedule(
+      processes.value.map(p => p.command),
+      statusById,
+      isParallel ? Number.POSITIVE_INFINITY : 1
+    )
 
-    for (const process of pendings) {
-      if (
-        !process.command.config.incompatibles.every(id =>
-          processes.value.filter(p => p.status === 'running').every(p => p.command.id != id)
-        )
-      ) {
-        continue
-      }
-
+    for (const cmd of wave) {
+      const process = processes.value.find(p => p.command.id === cmd.id)!
       await executor
         .Run(process.command.config.program, process.command.config.options)
         .then(processId => {

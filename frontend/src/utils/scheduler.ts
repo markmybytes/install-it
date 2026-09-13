@@ -27,6 +27,7 @@ export function firstBlocker(command: Command, occupied: ReadonlySet<CommandId>)
  * 1. mutually-exclusive groups block every sibling driver in the group;
  * 2. symmetric mirror — A lists B ⇒ B lists A (when B is a known command).
  * Input commands and groups are never mutated.
+ * Precondition: command ids must be unique — duplicate ids make the mirror map last-wins.
  */
 export function expandIncompat(
   commands: ReadonlyArray<Command>,
@@ -71,6 +72,7 @@ export function expandIncompat(
  * Pick the next dispatch wave: pending commands with no occupied incompatible
  * id, up to `parallelLimit`. Commands blocked by an occupied id go to `blockers`.
  * Pure — no input mutation, no side effects.
+ * Precondition: command ids must be unique — duplicate ids would co-dispatch in the same wave.
  */
 export function schedule(
   commands: ReadonlyArray<Command>,
