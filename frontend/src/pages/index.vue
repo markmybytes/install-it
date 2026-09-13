@@ -3,7 +3,6 @@ import CommandStatueModal from '@/components/CommandStatusModal.vue'
 import { type Command } from '@/types/execute'
 import * as utils from '@/utils'
 import { decodeError } from '@/utils/index'
-import { expandIncompat } from '@/utils/scheduler'
 import * as executor from '@/wailsjs/go/execute/CommandExecutor'
 import * as matcher from '@/wailsjs/go/matching/Matcher'
 import { sysinfo } from '@/wailsjs/go/models'
@@ -120,7 +119,7 @@ function resetSelection() {
 }
 
 async function handleSubmit() {
-  let commands: Array<Command> = []
+  const commands: Array<Command> = []
 
   if (settingStore.settings.set_password) {
     commands.push({
@@ -187,14 +186,12 @@ async function handleSubmit() {
       })
     })
 
-  commands = expandIncompat(commands, groupStore.groups)
-
   if (commands.length == 0) {
     toast.add({ title: t('warnNoInputWarning'), color: 'warning' })
     return
   }
 
-  statusModal.value?.show(settingStore.settings.parallel_install, commands)
+  statusModal.value?.show(settingStore.settings.parallel_install, commands, groupStore.groups)
 }
 
 onBeforeUnmount(() => {

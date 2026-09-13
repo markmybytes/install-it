@@ -1,69 +1,40 @@
 <script setup lang="ts">
+import { useScheduler } from '@/composables/useScheduler'
 import type { Command, Process } from '@/types/execute'
-import * as executor from '@/wailsjs/go/execute/CommandExecutor'
-import { status } from '@/wailsjs/go/models'
-import * as runtime from '@/wailsjs/runtime/runtime'
-import { decodeError } from '@/utils/index'
-import { schedule, type CommandId, type ProcessStatus } from '@/utils/scheduler'
-import AsyncLock from 'async-lock'
-import { ref } from 'vue'
+import type { storage } from '@/wailsjs/go/models'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const emit = defineEmits<{ completed: [] }>()
 
 const isOpen = ref(false)
 
+const { processes, start, abort, allCompleted, noActive } = useScheduler()
+
+const { t } = useI18n()
+
+const toast = useToast()
+
 defineExpose({
-  show: async (parallel: boolean, cmds: Array<Command>) => {
+  show: (parallel: boolean, cmds: Array<Command>, groups: ReadonlyArray<storage.DriverGroup>) => {
     isOpen.value = true
-
-    isParallel = parallel
-
-    processes.value = cmds.map(vals => ({ command: { ...vals }, status: status.Status.PENDING }))
-    dispatchCommand()
+    start(parallel, cmds, groups)
   },
   hide: () => {
     isOpen.value = false
   }
 })
 
-const { t } = useI18n()
-
-const toast = useToast()
-
-const lock = new AsyncLock()
-
-let isParallel = false
-
-const processes = ref<Array<Process>>([])
-
-runtime.EventsOn('execute:exited', async (id: string, result: NonNullable<Process['result']>) => {
-  const process = processes.value.find(c => c.procId === id)!
-  // The event payload's Error field is now a stable i18n code (e.g. errExecuteIdNotFound);
-  // localize it before storing so downstream display never shows the raw code.
-  process.result = {
-    ...result,
-    error: result.error ? decodeError({ code: result.error }, t) : result.error
+watch(allCompleted, (now, was) => {
+  if (now && !was) {
+    emit('completed')
+    toast.add({ title: t('msgFinished'), color: 'success' })
   }
-
-  if (result.aborted) {
-    process.status = status.Status.ABORTED
-  } else if (![0, ...process.command.config.allowRtCodes].includes(result.exitCode)) {
-    process.status = status.Status.FAILED
-  } else if (result.lapse < process.command.config.minExeTime) {
-    process.status = status.Status.SPEEDED
-  } else {
-    process.status = status.Status.COMPLETED
+})
+watch(noActive, (now, was) => {
+  if (now && !was && !allCompleted.value) {
+    toast.add({ title: t('msgFinished'), color: 'info' })
   }
-
-  dispatchCommand().then(() => {
-    if (processes.value.every(c => c.status === 'completed')) {
-      emit('completed')
-      toast.add({ title: t('msgFinished'), color: 'success' })
-    } else if (processes.value.every(c => !c.status.includes('ing'))) {
-      toast.add({ title: t('msgFinished'), color: 'info' })
-    }
-  })
 })
 
 function getProcessName(process: Process) {
@@ -72,79 +43,15 @@ function getProcessName(process: Process) {
     : process.command.groupName
 }
 
-async function dispatchCommand() {
-  lock.acquire('executor', async () => {
-    const statusById = new Map<CommandId, ProcessStatus>(
-      processes.value.map(p => [p.command.id, p.status])
-    )
-    const wave = schedule(
-      processes.value.map(p => p.command),
-      statusById,
-      isParallel ? Number.POSITIVE_INFINITY : 1
-    )
-
-    for (const cmd of wave) {
-      const process = processes.value.find(p => p.command.id === cmd.id)!
-      await executor
-        .Run(process.command.config.program, process.command.config.options)
-        .then(processId => {
-          process.status = status.Status.RUNNING
-          process.procId = processId
-        })
-        .catch(error => {
-          process.status = status.Status.ERRORED
-          process.result = {
-            lapse: -1,
-            exitCode: -1,
-            stdout: '',
-            stderr: '',
-            error: decodeError(error, t),
-            aborted: false
-          }
-        })
+function handleAbort(process: Process) {
+  return abort(process).then(outcome => {
+    if (outcome.ok) return
+    if (outcome.code === 'errExecuteIdNotFound') {
+      toast.add({ title: outcome.message, color: 'warning' })
+    } else {
+      toast.add({ title: `[${getProcessName(process)}] ${outcome.message}`, color: 'error' })
     }
   })
-}
-
-async function handleAbort(process: Process) {
-  return lock
-    .acquire('executor', () => {
-      if (process.status == 'pending' || process.status == 'running') {
-        process.status =
-          process.procId == undefined || process.procId == ''
-            ? status.Status.ABORTED
-            : status.Status.ABORTING
-      }
-    })
-    .then(() => {
-      if (process.status != 'aborting') {
-        return
-      }
-
-      // `aborted` status will be updated at `execute:exited` event handler
-      executor.Abort(process.procId!).catch(error => {
-        const code = (error as { code?: string })?.code ?? ''
-        if (code === 'errExecuteIdNotFound') {
-          toast.add({ title: decodeError(error, t), color: 'warning' })
-          return
-        }
-
-        toast.add({
-          title: `[${getProcessName(process)}] ${decodeError(error, t)}`,
-          color: 'error'
-        })
-
-        process.status = status.Status.ERRORED
-        process.result = {
-          lapse: -1,
-          exitCode: -1,
-          stdout: '',
-          stderr: '',
-          error: decodeError(error, t),
-          aborted: false
-        }
-      })
-    })
 }
 </script>
 
