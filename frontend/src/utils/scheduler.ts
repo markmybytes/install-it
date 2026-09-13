@@ -5,13 +5,6 @@ import type { storage } from '@/wailsjs/go/models'
 export type CommandId = string | number
 export type ProcessStatus = status.Status
 
-interface ScheduleResult {
-  /** Commands to dispatch this cycle, in input order, max `parallelLimit`. */
-  wave: ReadonlyArray<Command>
-  /** Pending commands that are blocked, mapped to the id of the blocker. */
-  blockers: ReadonlyMap<CommandId, CommandId>
-}
-
 /**
  * First id in `command.config.incompatibles` that is currently occupied, else null.
  */
@@ -69,16 +62,16 @@ export function expandIncompat(
 }
 
 /**
- * Pick the next dispatch wave: pending commands with no occupied incompatible
- * id, up to `parallelLimit`. Commands blocked by an occupied id go to `blockers`.
- * Pure — no input mutation, no side effects.
+ * Next dispatch wave (input order, max `parallelLimit`): pending commands with no
+ * occupied incompatible id. Pendings gated by an occupied id are skipped and
+ * re-evaluated on the next call. Pure — no input mutation, no side effects.
  * Precondition: command ids must be unique — duplicate ids would co-dispatch in the same wave.
  */
 export function schedule(
   commands: ReadonlyArray<Command>,
   statusById: ReadonlyMap<CommandId, ProcessStatus>,
   parallelLimit: number
-): ScheduleResult {
+): ReadonlyArray<Command> {
   if (parallelLimit < 1) throw new RangeError('parallelLimit must be >= 1')
 
   const occupied = new Set<CommandId>()
@@ -87,20 +80,15 @@ export function schedule(
   }
 
   const wave: Command[] = []
-  const blockers = new Map<CommandId, CommandId>()
 
   for (const cmd of commands) {
     if (statusById.get(cmd.id) !== status.Status.PENDING) continue
-    const blocker = firstBlocker(cmd, occupied)
-    if (blocker !== null) {
-      blockers.set(cmd.id, blocker)
-      continue
-    }
+    if (firstBlocker(cmd, occupied) !== null) continue
     if (wave.length < parallelLimit) {
       wave.push(cmd)
       occupied.add(cmd.id)
     }
   }
 
-  return { wave, blockers }
+  return wave
 }

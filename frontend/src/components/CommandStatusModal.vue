@@ -77,7 +77,7 @@ async function dispatchCommand() {
     const statusById = new Map<CommandId, ProcessStatus>(
       processes.value.map(p => [p.command.id, p.status])
     )
-    const { wave } = schedule(
+    const wave = schedule(
       processes.value.map(p => p.command),
       statusById,
       isParallel ? Number.POSITIVE_INFINITY : 1

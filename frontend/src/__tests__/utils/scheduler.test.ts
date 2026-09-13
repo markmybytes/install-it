@@ -55,12 +55,12 @@ describe('schedule', () => {
     ]
 
     for (const snapshot of snapshots) {
-      const { wave } = schedule(commands, snapshot, Infinity)
+      const wave = schedule(commands, snapshot, Infinity)
       for (const [a, b] of MUTEX_PAIRS) expect(hasPair(wave, a, b)).toBe(false)
     }
   })
 
-  it('parallelLimit=1 yields one wave slot; conflicting pendings land in blockers', () => {
+  it('parallelLimit=1: conflicting pendings stay out of the wave', () => {
     const commands = [cmd(1), cmd(2, [1]), cmd(3)]
     const allPending = statuses(
       [1, status.Status.PENDING],
@@ -68,18 +68,18 @@ describe('schedule', () => {
       [3, status.Status.PENDING]
     )
     const r = schedule(commands, allPending, 1)
-    expect(r.wave).toHaveLength(1)
-    expect(r.wave[0].id).toBe(1)
-    expect(r.blockers.get(2)).toBe(1)
-    expect(r.blockers.has(3)).toBe(false)
+    expect(r).toHaveLength(1)
+    expect(r[0].id).toBe(1)
+    expect(r.some(c => c.id === 2)).toBe(false)
+    expect(r.some(c => c.id === 3)).toBe(false)
 
     const second = schedule(
       commands,
       statuses([1, status.Status.RUNNING], [2, status.Status.PENDING], [3, status.Status.PENDING]),
       1
     )
-    expect(second.wave.map(c => c.id)).toEqual([3])
-    expect(second.blockers.get(2)).toBe(1)
+    expect(second.map(c => c.id)).toEqual([3])
+    expect(second.some(c => c.id === 2)).toBe(false)
   })
 
   it('symmetric one-directional edge: B blocks A after expandIncompat', () => {
@@ -94,9 +94,8 @@ describe('schedule', () => {
       statuses([1, status.Status.PENDING], [2, status.Status.PENDING]),
       Infinity
     )
-    expect(r.wave.map(c => c.id)).toEqual([1])
-    expect(r.blockers.get(2)).toBe(1)
-    expect(hasPair(r.wave, 1, 2)).toBe(false)
+    expect(r.map(c => c.id)).toEqual([1])
+    expect(hasPair(r, 1, 2)).toBe(false)
   })
 
   it('aborting occupies a slot and blocks pending dependents', () => {
@@ -105,8 +104,7 @@ describe('schedule', () => {
       statuses([1, status.Status.PENDING], [2, status.Status.ABORTING]),
       Infinity
     )
-    expect(r.wave).toHaveLength(0)
-    expect(r.blockers.get(1)).toBe(2)
+    expect(r).toHaveLength(0)
   })
 
   it('errored does not occupy: subsequent cycle skips it and dispatches the rest', () => {
@@ -116,28 +114,23 @@ describe('schedule', () => {
       statuses([1, status.Status.PENDING], [2, status.Status.PENDING], [3, status.Status.PENDING]),
       Infinity
     )
-    expect(first.wave.map(c => c.id)).toEqual([1, 3])
-    expect(first.blockers.get(2)).toBe(1)
+    expect(first.map(c => c.id)).toEqual([1, 3])
 
     const second = schedule(
       commands,
       statuses([1, status.Status.ERRORED], [2, status.Status.PENDING], [3, status.Status.PENDING]),
       Infinity
     )
-    expect(second.wave.map(c => c.id)).toEqual([2, 3])
-    expect(second.blockers.size).toBe(0)
+    expect(second.map(c => c.id)).toEqual([2, 3])
   })
 
-  it('empty input returns empty wave and blockers', () => {
-    const r = schedule([], new Map(), Infinity)
-    expect(r.wave).toEqual([])
-    expect(r.blockers.size).toBe(0)
+  it('empty input returns an empty wave', () => {
+    expect(schedule([], new Map(), Infinity)).toEqual([])
   })
 
   it('self-reference in incompatibles is not a self-block', () => {
     const r = schedule([cmd(1, [1])], statuses([1, status.Status.PENDING]), Infinity)
-    expect(r.wave.map(c => c.id)).toEqual([1])
-    expect(r.blockers.size).toBe(0)
+    expect(r.map(c => c.id)).toEqual([1])
   })
 
   it('wave order preserves input order', () => {
@@ -151,7 +144,7 @@ describe('schedule', () => {
       ),
       Infinity
     )
-    expect(r.wave.map(c => c.id)).toEqual(['a', 'b', 'c'])
+    expect(r.map(c => c.id)).toEqual(['a', 'b', 'c'])
   })
 
   it('parallelLimit=0 throws RangeError', () => {
