@@ -5,7 +5,7 @@ import type { storage } from '@/wailsjs/go/models'
 export type CommandId = string | number
 export type ProcessStatus = status.Status
 
-export interface ScheduleResult {
+interface ScheduleResult {
   /** Commands to dispatch this cycle, in input order, max `parallelLimit`. */
   wave: ReadonlyArray<Command>
   /** Pending commands that are blocked, mapped to the id of the blocker. */
