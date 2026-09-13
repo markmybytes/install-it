@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useScheduler } from '@/composables/useScheduler'
+import { useExecute } from '@/composables/useExecute'
 import type { Command, Process } from '@/types/execute'
 import type { storage } from '@/wailsjs/go/models'
 import { ref, watch } from 'vue'
@@ -9,7 +9,7 @@ const emit = defineEmits<{ completed: [] }>()
 
 const isOpen = ref(false)
 
-const { processes, start, abort, allCompleted, noActive } = useScheduler()
+const { processes, start, abort, allCompleted, noActive } = useExecute()
 
 const { t } = useI18n()
 

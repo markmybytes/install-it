@@ -17,7 +17,7 @@ export type AbortOutcome = { ok: true } | { ok: false; code?: string; message: s
  * is instantiated once (modal setup), so the `execute:exited` subscription
  * below registers exactly one handler.
  */
-export function useScheduler() {
+export function useExecute() {
   const { t } = useI18n()
 
   const processes = ref<Process[]>([])
