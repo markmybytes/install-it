@@ -19,8 +19,8 @@ Canonical conventions for install-it. Applies to all code in the repository unle
 ## General Principles
 
 - Prefer simple, direct solutions over premature abstraction.
-- **YAGNI Threshold**: Keep logic inline until it exceeds a readable screen (> 100 lines) or needs reuse across entry points.
-- Keep logic concise; avoid single-use helpers unless reuse is clear.
+- **YAGNI Threshold**: Keep logic inline until it exceeds a readable screen (> 100 lines), needs reuse across entry points, or is complex/high-stakes enough to warrant an isolated test.
+- Keep logic concise; avoid single-use helpers. One is OK when the logic is complex or high-stakes and isolation aids testability — then a test of the helper in isolation is required in the same change.
 - Avoid intermediate variables when direct expressions remain readable.
 - Ask for clarification when requirements are ambiguous.
 
@@ -56,15 +56,28 @@ Go uses casing for visibility: `camelCase` is unexported, `PascalCase` is export
 - Block order: `<script>` → `<template>` → `<style>`
 - Blank lines between all template tags (`vue/padding-line-between-tags`)
 
-### Inline Typing
+### Type Placement
 
-Define types inline directly where they are used unless the type is shared across multiple files — then place it in `frontend/src/types/`.
+Place types by ownership:
+
+- **Single file** — inline, where used. A named-but-unexported interface beside its function is fine when the shape needs field docs.
+- **Module-specific** — export beside the logic that owns it, even if other
+  modules import it (`ScheduleResult` lives next to `schedule()`).
+- **Shared vocabulary** — no single owner, used by unrelated modules
+  (`Command`, `Process` in `types/execute.ts`) — `frontend/src/types/`.
 
 ```typescript
-// Good — inline for single-use
+// Single file — inline
 defineProps<{ title: string }>()
 
-// Good — shared type in types/
+// Module-specific — export beside the owning logic
+// (utils/scheduler.ts)
+export interface ScheduleResult {
+  wave: ReadonlyArray<Command>
+  blockers: ReadonlyMap<CommandId, CommandId>
+}
+
+// Shared vocabulary — no single owner (types/execute.ts)
 import type { Command } from '@/types/execute'
 ```
 
@@ -244,7 +257,7 @@ EnumBind: []interface{}{
 ## Quick Review Checklist
 
 **All code:**
-- Logic is inline unless it exceeds ~100 lines or needs reuse
+- Logic is inline unless it exceeds ~100 lines, needs reuse, or is a tested single-use helper
 - No intermediate variables when direct expressions suffice
 - Errors are handled explicitly
 - `go fmt` / `go vet` applied (Go); `npm run lint` / `npm run format` pass (Vue/TS)
@@ -255,7 +268,7 @@ EnumBind: []interface{}{
 - Related refs grouped into object refs by context
 - Component methods are named functions; inline handlers use arrow functions
 - Promise chains (`.then().catch()`) used for Wails binding calls
-- Types inline unless shared across files (then in `types/`)
+- Types placed by ownership: inline (one file), module export (module-owned), `types/` (shared vocabulary)
 - Flex/grid + Tailwind gap utilities for layout
 - Layout uses `md:` and `xl:` only; `sm:` and `lg:` are skipped
 
