@@ -8,7 +8,6 @@ import { useI18n } from 'vue-i18n'
 
 defineProps<{
   index: number
-  isNew?: boolean
   expanded?: boolean
 }>()
 
@@ -197,7 +196,7 @@ function handleRemove() {
           </span>
 
           <span class="text-xs font-bold text-gray-500 uppercase xl:text-sm">
-            {{ isNew ? $t('titleCreateDriver') : $t('edit') }}
+            {{ driver.id === 0 ? $t('titleCreateDriver') : $t('edit') }}
           </span>
         </div>
 

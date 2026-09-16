@@ -225,7 +225,6 @@ function handleSubmit() {
         :key="(d as unknown) as PropertyKey"
         v-model:driver="group.drivers[i]!"
         :index="i"
-        :is-new="d.id === 0"
         :expanded="ui.expanded.has(d)"
         @remove="removeDriver"
         @toggle="toggleDriver"
