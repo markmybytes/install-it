@@ -36,19 +36,15 @@ const { data: group, reset } = useEditor({
 })
 
 const ui = ref<{
-  expanded: Set<number>
-  nextTempId: number
+  expanded: Set<storage.Driver>
 }>({
-  expanded: new Set(),
-  nextTempId: -1
+  expanded: new Set()
 })
 
 function addDriver() {
-  const id = ui.value.nextTempId
-  ui.value.nextTempId -= 1
   group.value.drivers.push(
     new storage.Driver({
-      id,
+      id: 0,
       type: group.value.type,
       name: '',
       path: '',
@@ -58,36 +54,39 @@ function addDriver() {
       incompatibles: []
     })
   )
-  ui.value.expanded.add(id)
+  // Add the element read back from the reactive array (not the raw object) so
+  // Set identity matches what the template iterates.
+  const added = group.value.drivers[group.value.drivers.length - 1]!
+  ui.value.expanded.add(added)
   ui.value.expanded = new Set(ui.value.expanded)
 }
 
-function removeDriver(id: number) {
-  group.value.drivers = group.value.drivers.filter(d => d.id !== id)
-  ui.value.expanded.delete(id)
+function removeDriver(d: storage.Driver) {
+  group.value.drivers = group.value.drivers.filter(x => x !== d)
+  ui.value.expanded.delete(d)
   ui.value.expanded = new Set(ui.value.expanded)
 }
 
-function toggleDriver(id: number) {
+function toggleDriver(d: storage.Driver) {
   const next = new Set(ui.value.expanded)
-  if (next.has(id)) {
-    next.delete(id)
+  if (next.has(d)) {
+    next.delete(d)
   } else {
-    next.add(id)
+    next.add(d)
   }
   ui.value.expanded = next
 }
 
 const allExpanded = computed(() => {
   if (group.value.drivers.length === 0) return false
-  return group.value.drivers.every(d => ui.value.expanded.has(d.id))
+  return group.value.drivers.every(d => ui.value.expanded.has(d))
 })
 
 function toggleAll() {
   if (allExpanded.value) {
     ui.value.expanded = new Set()
   } else {
-    ui.value.expanded = new Set(group.value.drivers.map(d => d.id))
+    ui.value.expanded = new Set(group.value.drivers)
   }
 }
 
@@ -223,11 +222,11 @@ function handleSubmit() {
 
       <DriverEditor
         v-for="(d, i) in group.drivers"
-        :key="d.id"
+        :key="(d as unknown) as PropertyKey"
         v-model:driver="group.drivers[i]!"
         :index="i"
-        :is-new="d.id < 0"
-        :expanded="ui.expanded.has(d.id)"
+        :is-new="d.id === 0"
+        :expanded="ui.expanded.has(d)"
         @remove="removeDriver"
         @toggle="toggleDriver"
       />

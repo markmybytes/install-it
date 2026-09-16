@@ -13,8 +13,8 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  remove: [id: number]
-  toggle: [id: number]
+  remove: [driver: storage.Driver]
+  toggle: [driver: storage.Driver]
 }>()
 
 const driver = defineModel<storage.Driver>('driver', { required: true })
@@ -94,11 +94,11 @@ function handleDone() {
     driver.value.minExeTime = Number(driver.value.minExeTime) || 5
   }
 
-  if (driver.value.id !== undefined) emit('toggle', driver.value.id)
+  emit('toggle', driver.value)
 }
 
 function handleRemove() {
-  if (driver.value.id !== undefined) emit('remove', driver.value.id)
+  emit('remove', driver.value)
 }
 </script>
 
@@ -115,7 +115,7 @@ function handleRemove() {
       v-if="!expanded"
       type="button"
       class="flex w-full cursor-pointer items-start gap-3 p-3 text-left"
-      @click="driver.id !== undefined && emit('toggle', driver.id)"
+      @click="emit('toggle', driver)"
     >
       <span
         class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded bg-gray-100 text-xs font-bold text-gray-500 xl:text-sm"
