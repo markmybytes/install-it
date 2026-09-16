@@ -386,7 +386,6 @@ function handleRemove() {
 
       <div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-3">
         <UButton
-          v-if="!isNew"
           type="button"
           color="error"
           variant="ghost"
