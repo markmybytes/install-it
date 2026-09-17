@@ -379,6 +379,7 @@ function handleRemove() {
             v-model="driver.incompatibles"
             group-by="driver"
             :driver-groups="groupStore.groups"
+            :excludes="driver.id > 0 ? [driver.id] : []"
           />
         </div>
       </details>
