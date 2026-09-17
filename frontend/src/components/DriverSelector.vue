@@ -74,7 +74,9 @@ const groupItems = computed(() =>
             model =
               $props.groupBy === 'group'
                 ? props.driverGroups.map(g => g.id)
-                : props.driverGroups.flatMap(g => g.drivers.map(d => d.id))
+                : props.driverGroups.flatMap(g =>
+                    g.drivers.filter(d => !props.excludes?.includes(d.id)).map(d => d.id)
+                  )
           }
         "
       >
