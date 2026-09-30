@@ -140,7 +140,8 @@ describe('DriverFormComponent', () => {
             flags: [],
             minExeTime: 5,
             allowRtCodes: [],
-            incompatibles: []
+            incompatibles: [],
+            globalExclusive: false
           })
         ]
       })

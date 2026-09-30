@@ -194,6 +194,7 @@ export namespace storage {
 	    minExeTime: number;
 	    allowRtCodes: number[];
 	    incompatibles: number[];
+	    globalExclusive: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Driver(source);
@@ -209,6 +210,7 @@ export namespace storage {
 	        this.minExeTime = source["minExeTime"];
 	        this.allowRtCodes = source["allowRtCodes"];
 	        this.incompatibles = source["incompatibles"];
+	        this.globalExclusive = source["globalExclusive"];
 	    }
 	}
 	export class DriverGroup {

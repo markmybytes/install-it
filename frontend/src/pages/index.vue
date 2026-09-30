@@ -139,7 +139,8 @@ async function handleSubmit() {
         ],
         minExeTime: 0.5,
         allowRtCodes: [0],
-        incompatibles: []
+        incompatibles: [],
+        globalExclusive: false
       }
     })
   }
@@ -158,7 +159,8 @@ async function handleSubmit() {
         ],
         minExeTime: 1,
         allowRtCodes: [0],
-        incompatibles: []
+        incompatibles: [],
+        globalExclusive: false
       }
     })
   }
@@ -180,7 +182,8 @@ async function handleSubmit() {
             options: driver.flags,
             minExeTime: driver.minExeTime,
             allowRtCodes: driver.allowRtCodes,
-            incompatibles: driver.incompatibles
+            incompatibles: driver.incompatibles,
+            globalExclusive: driver.globalExclusive
           }
         })
       })

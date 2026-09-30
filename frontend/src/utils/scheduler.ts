@@ -18,7 +18,9 @@ export function firstBlocker(command: Command, occupied: ReadonlySet<CommandId>)
 /**
  * Deep-ish copy of `commands` with expanded `config.incompatibles`:
  * 1. mutually-exclusive groups block every sibling driver in the group;
- * 2. symmetric mirror — A lists B ⇒ B lists A (when B is a known command).
+ * 2. symmetric mirror — A lists B ⇒ B lists A (when B is a known command);
+ * 3. a global-exclusive command blocks every other command (incl. string-id
+ *    synthetic commands), and rule 2 then makes every other command block it.
  * Input commands and groups are never mutated.
  * Precondition: command ids must be unique — duplicate ids make the mirror map last-wins.
  */
@@ -49,11 +51,23 @@ export function expandIncompat(
   }
 
   for (const cmd of expanded) {
+    if (!cmd.config.globalExclusive) continue
+    const list = cmd.config.incompatibles
+    const seen = new Set(list)
+    for (const other of expanded) {
+      if (other.id !== cmd.id && !seen.has(other.id)) {
+        seen.add(other.id)
+        list.push(other.id)
+      }
+    }
+  }
+
+  for (const cmd of expanded) {
     for (const b of cmd.config.incompatibles) {
       if (cmd.id === b) continue
       const target = byId.get(b)
       if (!target) continue
-      const mirrored = target.config.incompatibles as Array<CommandId>
+      const mirrored = target.config.incompatibles
       if (!mirrored.includes(cmd.id)) mirrored.push(cmd.id)
     }
   }
