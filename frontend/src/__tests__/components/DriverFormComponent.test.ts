@@ -34,6 +34,22 @@ const UButtonStub = defineComponent({
   }
 })
 
+// Real proxy stub so the per-driver globalExclusive checkbox binding can be
+// exercised (the default `stubs: { UCheckbox: true }` renders no input).
+const UCheckboxStub = defineComponent({
+  name: 'UCheckbox',
+  props: { modelValue: { type: Boolean, default: false } },
+  emits: ['update:modelValue'],
+  setup(props, { emit }) {
+    return () =>
+      h('input', {
+        type: 'checkbox',
+        checked: props.modelValue,
+        onChange: (e: Event) => emit('update:modelValue', (e.target as HTMLInputElement).checked)
+      })
+  }
+})
+
 const toastAdd = vi.fn()
 
 let fakeStore: { groups: storage.DriverGroup[] }
@@ -67,7 +83,7 @@ async function mountForm(props: { id?: number } = {}) {
         UInput: UInputStub,
         USelect: true,
         UButton: UButtonStub,
-        UCheckbox: true,
+        UCheckbox: UCheckboxStub,
         DriverSelector: true,
         ChipInput: true
       },
@@ -160,5 +176,29 @@ describe('DriverFormComponent', () => {
     const payload = vi.mocked(groupStorage.Update).mock.calls[0]![0]
     expect(payload.drivers[0]!.id).toBe(1)
     expect(vi.mocked(groupStorage.Add)).not.toHaveBeenCalled()
+  })
+
+  it('binds the per-driver globalExclusive checkbox into the submitted payload', async () => {
+    const { wrapper } = await mountForm()
+
+    const addButton = findAddButton(wrapper)
+    await addButton!.trigger('click')
+    await wrapper.find('input').setValue('G1')
+
+    const editor = wrapper.findComponent({ name: 'DriverEditor' })
+    const driver = editor.props('driver') as storage.Driver
+    driver.path = 'C:/solo.exe'
+
+    // addDriver() expands the new editor, so the fieldset checkbox is rendered.
+    const checkbox = editor.find('input[type="checkbox"]')
+    expect(checkbox.exists()).toBe(true)
+    await checkbox.setValue(true)
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(vi.mocked(groupStorage.Add)).toHaveBeenCalledTimes(1)
+    const payload = vi.mocked(groupStorage.Add).mock.calls[0]![0]
+    expect(payload.drivers[0]!.globalExclusive).toBe(true)
   })
 })

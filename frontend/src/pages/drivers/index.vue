@@ -166,6 +166,14 @@ function openInspect(id: number) {
                   </span>
 
                   <span
+                    v-if="g.drivers.some(d => d.globalExclusive)"
+                    class="inline-flex items-center rounded bg-fuchsia-100 px-1 py-0.5 text-fuchsia-700"
+                    :title="$t('fieldGlobalExclusive')"
+                  >
+                    <Icon icon="mdi:asterisk" />
+                  </span>
+
+                  <span
                     v-if="g.drivers.some(d => d.incompatibles.length > 0)"
                     class="inline-flex items-center rounded bg-yellow-100 px-1 py-0.5 text-yellow-700"
                     :title="$t('labelIncompatibleWith')"

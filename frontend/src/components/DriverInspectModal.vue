@@ -153,6 +153,16 @@ watch(
                   {{ d.incompatibles.length > 0 ? d.incompatibles.length : '--' }}
                 </span>
               </div>
+
+              <div>
+                <span class="block text-xs font-bold text-gray-400 uppercase xl:text-xs">{{
+                  $t('fieldGlobalExclusive')
+                }}</span>
+
+                <span class="mt-0.5 block font-mono text-xs font-bold text-gray-700 xl:text-sm">
+                  {{ d.globalExclusive ? $t('labelYes') : '--' }}
+                </span>
+              </div>
             </div>
           </div>
         </div>

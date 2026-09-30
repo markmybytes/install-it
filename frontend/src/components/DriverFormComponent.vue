@@ -51,7 +51,8 @@ function addDriver() {
       flags: [],
       minExeTime: 5,
       allowRtCodes: [],
-      incompatibles: []
+      incompatibles: [],
+      globalExclusive: false
     })
   )
   // Add the element read back from the reactive array (not the raw object) so
