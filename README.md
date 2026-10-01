@@ -17,7 +17,7 @@
 <!-- PROJECT LOGO -->
 <div align="center">
   <a href="https://github.com/markmybytes/install-it">
-    <img src="https://github.com/user-attachments/assets/ea47a738-6f1e-4e8d-bde0-4f12118ff103" alt="Logo" width="80" height="80">
+    <img src="https://github.com/markmybytes/install-it/blob/main/frontend/public/favicon.svg" alt="Logo" width="80" height="80">
   </a>
 
   <h3 align="center">install-it</h3>
