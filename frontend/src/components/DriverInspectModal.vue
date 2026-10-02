@@ -94,7 +94,7 @@ watch(
               v-if="groupStore.notFoundDrivers.includes(d.id)"
               class="rounded border border-red-200 bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700 xl:text-xs"
             >
-              {{ $t('labelMissingExe') }}
+              {{ $t('labelInvalidPath') }}
             </span>
           </div>
 
