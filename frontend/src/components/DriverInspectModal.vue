@@ -49,7 +49,7 @@ watch(
 
           <div class="border-x border-gray-100">
             <span class="block text-xs font-bold text-gray-400 uppercase xl:text-xs">
-              {{ $t('fieldExclusiveFlow') }}
+              {{ $t('fieldGroupExclusive') }}
             </span>
 
             <span class="text-sm font-bold text-gray-800 xl:text-sm">
@@ -149,18 +149,11 @@ watch(
                   $t('labelIncompatibleWith')
                 }}</span>
 
-                <span class="mt-0.5 block font-mono text-xs font-bold text-gray-700 xl:text-sm">
-                  {{ d.incompatibles.length > 0 ? d.incompatibles.length : '--' }}
-                </span>
-              </div>
-
-              <div>
-                <span class="block text-xs font-bold text-gray-400 uppercase xl:text-xs">{{
-                  $t('fieldGlobalExclusive')
-                }}</span>
-
-                <span class="mt-0.5 block font-mono text-xs font-bold text-gray-700 xl:text-sm">
-                  {{ d.globalExclusive ? $t('labelYes') : '--' }}
+                <span
+                  class="mt-0.5 block font-mono text-xs font-bold xl:text-sm"
+                  :class="d.globalExclusive ? 'text-fuchsia-700' : 'text-gray-700'"
+                >
+                  {{ d.globalExclusive ? $t('fieldGlobalExclusive') : d.incompatibles.length > 0 ? d.incompatibles.length : '--' }}
                 </span>
               </div>
             </div>

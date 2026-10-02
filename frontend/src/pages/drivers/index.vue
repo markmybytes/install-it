@@ -160,7 +160,7 @@ function openInspect(id: number) {
                   <span
                     v-if="g.mutuallyExclusive"
                     class="inline-flex items-center gap-0.5 rounded bg-orange-100 px-1 py-0.5 text-orange-700"
-                    :title="$t('fieldMutuallyExclusive')"
+                    :title="$t('fieldGroupExclusive')"
                   >
                     <Icon icon="mdi:chart-timeline" />
                   </span>
