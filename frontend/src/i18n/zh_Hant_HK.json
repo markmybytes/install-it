@@ -103,6 +103,7 @@
   "labelManual": "手動輸入",
   "labelMissingExe": "路徑無效",
   "labelMatch": "配對",
+  "labelMatching": "配對中",
   "labelMultiPatternMatching": "多匹配值配對",
   "labelMultiRuleMatching": "多規則配對",
   "labelNA": "N/A",

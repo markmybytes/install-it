@@ -42,6 +42,7 @@ let timer: ReturnType<typeof setTimeout> | null = null
 const selectedNetwork = ref<number>(0)
 const selectedDisplay = ref<number>(0)
 const selectedMiscellaneous = ref<number[]>([])
+const matching = ref(false)
 
 function loadSystemInfo() {
   Promise.all([utils.getHardware(), utils.getOSInfo()]).then(([hw, os]) => {
@@ -92,6 +93,7 @@ onBeforeMount(() => {
 })
 
 function selectMatchedOptions() {
+  matching.value = true
   matcher
     .MatchedGroupIds()
     .then(matchedIds => {
@@ -110,6 +112,9 @@ function selectMatchedOptions() {
       })
     })
     .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
+    .finally(() => {
+      matching.value = false
+    })
 }
 
 function resetSelection() {
@@ -258,7 +263,17 @@ onBeforeUnmount(() => {
       </template>
     </div>
 
-    <form ref="form" class="mt-3 flex h-28 gap-x-3">
+    <form ref="form" class="relative mt-3 flex h-28 gap-x-3">
+      <div
+        v-if="matching"
+        class="absolute -inset-2 z-10 flex flex-col items-center justify-center gap-y-1 rounded-lg bg-white/70 backdrop-blur-xs"
+        role="status"
+      >
+        <UIcon name="i-lucide-loader-circle" class="animate-spin text-xl text-apple-green-600" />
+
+        <span class="text-xs text-gray-500">{{ $t('labelMatching') }}</span>
+      </div>
+
       <div class="flex flex-1 flex-col justify-between">
         <div class="relative w-full">
           <label
@@ -403,11 +418,23 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="mt-2 flex h-8 flex-row items-center justify-end gap-x-3">
-          <UButton type="button" color="neutral" variant="outline" @click="selectMatchedOptions">
+          <UButton
+            type="button"
+            color="neutral"
+            variant="outline"
+            :disabled="matching || systemInfo.hw === null"
+            @click="selectMatchedOptions"
+          >
             {{ $t('labelMatch') }}
           </UButton>
 
-          <UButton type="button" color="secondary" variant="outline" @click="resetSelection">
+          <UButton
+            type="button"
+            color="secondary"
+            variant="outline"
+            :disabled="matching"
+            @click="resetSelection"
+          >
             {{ $t('actionReset') }}
           </UButton>
 
