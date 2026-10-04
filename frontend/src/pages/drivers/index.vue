@@ -142,7 +142,7 @@ function openInspect(id: number) {
                     v-if="!groupStore.isAllDriversExist(g)"
                     class="inline-flex items-center gap-0.5 rounded border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-600 xl:text-xs"
                     :title="
-                      $t('labelPathMissing', {
+                      $t('labelInvalidPathCount', {
                         count: g.drivers.filter(d => groupStore.notFoundDrivers.includes(d.id))
                           .length
                       })
@@ -150,7 +150,7 @@ function openInspect(id: number) {
                   >
                     <Icon icon="mdi:alert-circle" />
                     {{
-                      $t('labelPathMissing', {
+                      $t('labelInvalidPathCount', {
                         count: g.drivers.filter(d => groupStore.notFoundDrivers.includes(d.id))
                           .length
                       })
