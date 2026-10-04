@@ -30,7 +30,14 @@ vi.mock('vue-i18n', () => ({
 const cmd = (id: number, incompatibles: number[] = []): Command => ({
   id,
   groupName: 'g',
-  config: { program: `p${id}`, options: [], minExeTime: 0, allowRtCodes: [], incompatibles }
+  config: {
+    program: `p${id}`,
+    options: [],
+    minExeTime: 0,
+    allowRtCodes: [],
+    incompatibles,
+    globalExclusive: false
+  }
 })
 
 const mutexGroup = () =>

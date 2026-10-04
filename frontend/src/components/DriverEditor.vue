@@ -95,6 +95,10 @@ function handleDone() {
 
   emit('toggle', driver.value)
 }
+
+function handleRemove() {
+  emit('remove', driver.value)
+}
 </script>
 
 <template>
@@ -131,7 +135,7 @@ function handleDone() {
             v-if="notFound"
             class="rounded border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600 xl:text-xs"
           >
-            {{ $t('labelMissingExe') }}
+            {{ $t('labelInvalidPath') }}
           </span>
         </div>
 
@@ -175,6 +179,14 @@ function handleDone() {
           >
             <Icon icon="mdi:source-merge" class="h-3 w-3" />
             {{ driver.incompatibles.length }}
+          </span>
+
+          <span
+            v-if="driver.globalExclusive"
+            class="inline-flex items-center gap-1 rounded bg-fuchsia-100 px-1.5 py-0.5 text-[10px] font-semibold text-fuchsia-700 xl:text-xs"
+            :title="$t('fieldGlobalExclusive')"
+          >
+            <Icon icon="mdi:asterisk" class="h-3 w-3" />
           </span>
         </div>
       </div>
@@ -256,7 +268,7 @@ function handleDone() {
           class="mt-1 inline-flex items-center gap-1 text-[10px] text-red-600 xl:text-xs"
         >
           <Icon icon="mdi:alert-circle" />
-          {{ $t('labelMissingExe') }}
+          {{ $t('labelInvalidPath') }}
         </p>
       </fieldset>
 
@@ -378,27 +390,40 @@ function handleDone() {
         </summary>
 
         <div class="border-t border-gray-200 bg-white p-3">
-          <p class="mb-2 text-xs font-medium text-gray-500 xl:text-sm">
-            {{ t('descIncompatible') }}
-          </p>
+          <label class="flex cursor-pointer items-start gap-3">
+            <UCheckbox v-model="driver.globalExclusive" class="mt-1" />
 
-          <DriverSelector
-            v-model="driver.incompatibles"
-            group-by="driver"
-            :driver-groups="groupStore.groups"
-            :excludes="driver.id > 0 ? [driver.id] : []"
-          />
+            <div>
+              <span class="block text-xs font-bold text-gray-800 xl:text-sm">
+                {{ t('fieldGlobalExclusive') }}
+              </span>
+
+              <p class="mt-0.5 text-xs text-gray-500">
+                {{ t('descGlobalExclusive') }}
+              </p>
+            </div>
+          </label>
+
+          <div
+            class="mt-3 border-t border-gray-100 pt-3"
+            :class="driver.globalExclusive ? 'pointer-events-none opacity-40' : ''"
+          >
+            <p class="mb-2 text-xs font-medium text-gray-500 xl:text-sm">
+              {{ t('descIncompatible') }}
+            </p>
+
+            <DriverSelector
+              v-model="driver.incompatibles"
+              group-by="driver"
+              :driver-groups="groupStore.groups"
+              :excludes="driver.id > 0 ? [driver.id] : []"
+            />
+          </div>
         </div>
       </details>
 
       <div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-3">
-        <UButton
-          type="button"
-          color="error"
-          variant="ghost"
-          size="sm"
-          @click="emit('remove', driver)"
-        >
+        <UButton type="button" color="error" variant="ghost" size="sm" @click="handleRemove">
           <Icon icon="mdi:trash-can" class="mr-1" />
           {{ t('delete') }}
         </UButton>

@@ -142,7 +142,7 @@ function openInspect(id: number) {
                     v-if="!groupStore.isAllDriversExist(g)"
                     class="inline-flex items-center gap-0.5 rounded border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-600 xl:text-xs"
                     :title="
-                      $t('labelPathMissing', {
+                      $t('labelInvalidPathCount', {
                         count: g.drivers.filter(d => groupStore.notFoundDrivers.includes(d.id))
                           .length
                       })
@@ -150,7 +150,7 @@ function openInspect(id: number) {
                   >
                     <Icon icon="mdi:alert-circle" />
                     {{
-                      $t('labelPathMissing', {
+                      $t('labelInvalidPathCount', {
                         count: g.drivers.filter(d => groupStore.notFoundDrivers.includes(d.id))
                           .length
                       })
@@ -160,9 +160,17 @@ function openInspect(id: number) {
                   <span
                     v-if="g.mutuallyExclusive"
                     class="inline-flex items-center gap-0.5 rounded bg-orange-100 px-1 py-0.5 text-orange-700"
-                    :title="$t('fieldMutuallyExclusive')"
+                    :title="$t('fieldGroupExclusive')"
                   >
                     <Icon icon="mdi:chart-timeline" />
+                  </span>
+
+                  <span
+                    v-if="g.drivers.some(d => d.globalExclusive)"
+                    class="inline-flex items-center rounded bg-fuchsia-100 px-1 py-0.5 text-fuchsia-700"
+                    :title="$t('fieldGlobalExclusive')"
+                  >
+                    <Icon icon="mdi:asterisk" />
                   </span>
 
                   <span

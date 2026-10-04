@@ -3,16 +3,27 @@ import type { Command } from '@/types/execute'
 import { schedule, expandIncompat, firstBlocker, type CommandId } from '@/utils/scheduler'
 import { status, storage } from '@/wailsjs/go/models'
 
-const cmd = (id: number | string, incompatibles: number[] = []): Command => ({
+const cmd = (
+  id: number | string,
+  incompatibles: Array<number | string> = [],
+  globalExclusive = false
+): Command => ({
   id,
   groupName: 'g',
-  config: { program: 'p', options: [], minExeTime: 0, allowRtCodes: [], incompatibles }
+  config: {
+    program: 'p',
+    options: [],
+    minExeTime: 0,
+    allowRtCodes: [],
+    incompatibles,
+    globalExclusive
+  }
 })
 
 const statuses = (...pairs: [CommandId, status.Status][]): Map<CommandId, status.Status> =>
   new Map(pairs)
 
-const hasPair = (wave: ReadonlyArray<Command>, a: number, b: number) =>
+const hasPair = (wave: ReadonlyArray<Command>, a: CommandId, b: CommandId) =>
   wave.some(c => c.id === a) && wave.some(c => c.id === b)
 
 const MUTEX_PAIRS: Array<[number, number]> = [
@@ -58,6 +69,50 @@ describe('schedule', () => {
       const wave = schedule(commands, snapshot, Infinity)
       for (const [a, b] of MUTEX_PAIRS) expect(hasPair(wave, a, b)).toBe(false)
     }
+  })
+
+  it('overlap invariant: global-exclusive driver never shares a wave with any other command', () => {
+    const commands = expandIncompat([cmd(1, [], true), cmd(10), cmd(11), cmd('set_password')], [])
+
+    const snapshots: Array<Map<CommandId, status.Status>> = [
+      statuses(
+        [1, status.Status.PENDING],
+        [10, status.Status.PENDING],
+        [11, status.Status.PENDING],
+        ['set_password', status.Status.PENDING]
+      ),
+      statuses(
+        [1, status.Status.RUNNING],
+        [10, status.Status.PENDING],
+        [11, status.Status.PENDING],
+        ['set_password', status.Status.PENDING]
+      ),
+      statuses(
+        [1, status.Status.COMPLETED],
+        [10, status.Status.RUNNING],
+        [11, status.Status.PENDING],
+        ['set_password', status.Status.PENDING]
+      )
+    ]
+
+    expect(schedule(commands, snapshots[0], Infinity).map(c => c.id)).toEqual([1])
+
+    for (const snapshot of snapshots) {
+      const wave = schedule(commands, snapshot, Infinity)
+      expect(hasPair(wave, 1, 10)).toBe(false)
+      expect(hasPair(wave, 1, 11)).toBe(false)
+      expect(hasPair(wave, 1, 'set_password')).toBe(false)
+    }
+  })
+
+  it('parallelLimit=1: global-exclusive command dispatches alone first', () => {
+    const commands = expandIncompat([cmd(1, [], true), cmd(2)], [])
+    const wave = schedule(
+      commands,
+      statuses([1, status.Status.PENDING], [2, status.Status.PENDING]),
+      1
+    )
+    expect(wave.map(c => c.id)).toEqual([1])
   })
 
   it('parallelLimit=1: conflicting pendings stay out of the wave', () => {
@@ -169,6 +224,45 @@ describe('expandIncompat', () => {
     expect(out[0].config.incompatibles).toEqual([2, 3])
     expect(out[1].config.incompatibles).toEqual([1, 3])
     expect(out[2].config.incompatibles).toEqual([1, 2])
+  })
+
+  it('global-exclusive driver in a mutually-exclusive group does not duplicate ME-pushed ids', () => {
+    const group = new storage.DriverGroup({
+      id: 1,
+      name: 'gpu',
+      type: storage.DriverType.DISPLAY,
+      mutuallyExclusive: true,
+      drivers: [{ id: 1 }, { id: 2 }]
+    })
+    const out = expandIncompat([cmd(1, [], true), cmd(2)], [group])
+    expect(out[0].config.incompatibles).toEqual([2])
+    expect(out[1].config.incompatibles).toEqual([1])
+  })
+
+  it('global-exclusive command lists every other id (incl. string ids) and excludes self', () => {
+    const out = expandIncompat([cmd(1, [], true), cmd(2), cmd('set_password')], [])
+    expect(out[0].config.incompatibles).toEqual([2, 'set_password'])
+    expect(out[0].config.incompatibles).not.toContain(1)
+  })
+
+  it('global-exclusive mirror: every other command lists the exclusive id', () => {
+    const out = expandIncompat([cmd(1, [], true), cmd(2), cmd('set_password')], [])
+    expect(out[1].config.incompatibles).toEqual([1])
+    expect(out[2].config.incompatibles).toEqual([1])
+  })
+
+  it('global-exclusive expansion skips ids already present (no duplicates)', () => {
+    const out = expandIncompat([cmd(1, [2], true), cmd(2)], [])
+    expect(out[0].config.incompatibles).toEqual([2])
+  })
+
+  it('does not mutate inputs when expanding a global-exclusive command', () => {
+    const commands = [cmd(1, [9], true), cmd(2), cmd('set_password')]
+    const commandsSnapshot = JSON.parse(JSON.stringify(commands))
+
+    expandIncompat(commands, [])
+
+    expect(JSON.parse(JSON.stringify(commands))).toEqual(commandsSnapshot)
   })
 
   it('does not mutate input commands or groups', () => {

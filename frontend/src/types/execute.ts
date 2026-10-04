@@ -9,7 +9,8 @@ export type Command = {
     options: Array<string>
     minExeTime: number
     allowRtCodes: Array<number>
-    incompatibles: Array<number>
+    incompatibles: Array<string | number>
+    globalExclusive: boolean
   }
 }
 

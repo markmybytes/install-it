@@ -36,6 +36,7 @@ type Driver struct {
 	AllowRtCodes    []int32    `json:"allowRtCodes" gorm:"serializer:json"`
 	Incompatibles   []*Driver  `json:"-" gorm:"many2many:driver_incompatibles;joinForeignKey:DriverID;joinReferences:IncompatibleDriverID;constraint:OnDelete:CASCADE"`
 	IncompatibleIds []uint     `json:"incompatibles" gorm:"-"`
+	GlobalExclusive bool       `json:"globalExclusive"`
 }
 
 func populateIncompatibleIds(d *Driver) {
@@ -192,13 +193,14 @@ func (s *DriverGroupStorage) Clone(id uint) error {
 		oldToNew := make(map[uint]*Driver, len(original.Drivers))
 		for _, d := range original.Drivers {
 			newDriver := &Driver{
-				GroupId:      newGroup.Id,
-				Name:         d.Name,
-				Type:         d.Type,
-				Path:         d.Path,
-				Flags:        d.Flags,
-				MinExeTime:   d.MinExeTime,
-				AllowRtCodes: d.AllowRtCodes,
+				GroupId:         newGroup.Id,
+				Name:            d.Name,
+				Type:            d.Type,
+				Path:            d.Path,
+				Flags:           d.Flags,
+				MinExeTime:      d.MinExeTime,
+				AllowRtCodes:    d.AllowRtCodes,
+				GlobalExclusive: d.GlobalExclusive,
 			}
 			if err := tx.Create(newDriver).Error; err != nil {
 				return errcode.New("errStorageWriteFailed")

@@ -49,7 +49,7 @@ watch(
 
           <div class="border-x border-gray-100">
             <span class="block text-xs font-bold text-gray-400 uppercase xl:text-xs">
-              {{ $t('fieldExclusiveFlow') }}
+              {{ $t('fieldGroupExclusive') }}
             </span>
 
             <span class="text-sm font-bold text-gray-800 xl:text-sm">
@@ -94,7 +94,7 @@ watch(
               v-if="groupStore.notFoundDrivers.includes(d.id)"
               class="rounded border border-red-200 bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700 xl:text-xs"
             >
-              {{ $t('labelMissingExe') }}
+              {{ $t('labelInvalidPath') }}
             </span>
           </div>
 
@@ -149,8 +149,11 @@ watch(
                   $t('labelIncompatibleWith')
                 }}</span>
 
-                <span class="mt-0.5 block font-mono text-xs font-bold text-gray-700 xl:text-sm">
-                  {{ d.incompatibles.length > 0 ? d.incompatibles.length : '--' }}
+                <span
+                  class="mt-0.5 block font-mono text-xs font-bold xl:text-sm"
+                  :class="d.globalExclusive ? 'text-fuchsia-700' : 'text-gray-700'"
+                >
+                  {{ d.globalExclusive ? $t('fieldGlobalExclusive') : d.incompatibles.length > 0 ? d.incompatibles.length : '--' }}
                 </span>
               </div>
             </div>

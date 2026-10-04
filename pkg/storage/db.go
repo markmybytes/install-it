@@ -80,6 +80,17 @@ func (d *Database) Migrate() error {
 					"rule_sets", "drivers", "driver_groups")
 			},
 		},
+		{
+			ID: "2026093001_driver_global_exclusive",
+			Migrate: func(tx *gorm.DB) error {
+				// Additive: AutoMigrate adds the new global_exclusive column
+				// and leaves existing columns/rows untouched. No Rollback:
+				// a destructive DropColumn would cascade-wipe the
+				// driver_incompatibles join edges, and an additive column
+				// needs no down-migration.
+				return tx.AutoMigrate(&Driver{})
+			},
+		},
 	}).Migrate()
 }
 
