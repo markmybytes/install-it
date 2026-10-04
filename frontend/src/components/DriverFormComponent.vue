@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import DriverEditor from '@/components/DriverEditor.vue'
+import { decodeError } from '@/utils/index'
 import { storage } from '@/wailsjs/go/models'
 import * as groupStorage from '@/wailsjs/go/storage/DriverGroupStorage'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { decodeError } from '@/utils/index'
 
 const props = defineProps<{ id?: number }>()
 
@@ -223,7 +223,7 @@ function handleSubmit() {
 
       <DriverEditor
         v-for="(d, i) in group.drivers"
-        :key="(d as unknown) as PropertyKey"
+        :key="d as unknown as PropertyKey"
         v-model:driver="group.drivers[i]!"
         :index="i"
         :expanded="ui.expanded.has(d)"
