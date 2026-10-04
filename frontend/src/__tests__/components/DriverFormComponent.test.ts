@@ -68,6 +68,7 @@ async function mountForm(props: { id?: number } = {}) {
         USelect: true,
         UButton: UButtonStub,
         UCheckbox: true,
+        UTooltip: true,
         DriverSelector: true,
         ChipInput: true
       },

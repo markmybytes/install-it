@@ -26,6 +26,7 @@
   "create": "Create",
   "delete": "Delete",
   "descAllowedExitCode": "If the exit code of the execution is in the specified value, the execution will be treated as successful.",
+  "descChipInput": "Press Enter to add an argument. Click an argument to edit it.",
   "descCommaSeparated": "Use comma to separate multiple values.",
   "descDeleteGroup": "This action cannot be undone.",
   "descDriverGroup": "Add multiple entries into a single option. When selected, all entries will be executed.",

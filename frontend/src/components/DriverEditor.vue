@@ -95,10 +95,6 @@ function handleDone() {
 
   emit('toggle', driver.value)
 }
-
-function handleRemove() {
-  emit('remove', driver.value)
-}
 </script>
 
 <template>
@@ -265,9 +261,20 @@ function handleRemove() {
       </fieldset>
 
       <fieldset>
-        <label class="mb-1.5 block text-xs font-bold text-gray-700 xl:mb-2 xl:text-sm">
-          {{ t('fieldArgument') }}
-        </label>
+        <div
+          class="mb-1.5 flex items-center gap-1 text-xs font-bold text-gray-700 xl:mb-2 xl:text-sm"
+        >
+          <span>{{ t('fieldArgument') }}</span>
+
+          <UTooltip :text="t('descChipInput')" :delay-duration="300" :content="{ side: 'right' }">
+            <button type="button" class="cursor-help" :aria-label="t('descChipInput')">
+              <Icon
+                icon="mdi:information-outline"
+                class="size-3 text-gray-400 transition-colors hover:text-half-baked-600 xl:h-3.5 xl:w-3.5"
+              />
+            </button>
+          </UTooltip>
+        </div>
 
         <ChipInput v-model="driver.flags" placeholder="e.g. /S (Enter)">
           <UDropdownMenu :items="[flagItems]" :ui="{ content: 'max-h-58 overflow-y-auto' }">
@@ -390,7 +397,7 @@ function handleRemove() {
           color="error"
           variant="ghost"
           size="sm"
-          @click="handleRemove"
+          @click="emit('remove', driver)"
         >
           <Icon icon="mdi:trash-can" class="mr-1" />
           {{ t('delete') }}

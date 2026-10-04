@@ -26,6 +26,7 @@
   "create": "建立",
   "delete": "刪除",
   "descAllowedExitCode": "程序結束狀態碼若在所列，不視作失敗。",
+  "descChipInput": "輸入後按 Enter 加入參數；點擊標籤以編輯參數。",
   "descCommaSeparated": "以逗號分隔多個輸入。",
   "descDeleteGroup": "此操作無法撤銷。",
   "descDriverGroup": "可集數項目於一選項中，選之則同時執行。",
