@@ -16,7 +16,8 @@ function makeDriver(id: string, path: string): storage.Driver {
     flags: [],
     minExeTime: 0,
     allowRtCodes: [],
-    incompatibles: []
+    incompatibles: [],
+    globalExclusive: false
   })
 }
 

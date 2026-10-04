@@ -281,6 +281,110 @@ func TestDriverGroupStorage_Remove_CascadeIncompatibles(t *testing.T) {
 	}
 }
 
+func TestDriverGroupStorage_Add_PersistsGlobalExclusive(t *testing.T) {
+	db := openTestDB(t)
+	dgs := NewDriverGroupStorage(db)
+
+	id := addGroup(t, dgs, DriverGroup{
+		Name:    "Exclusive Group",
+		Type:    Network,
+		Drivers: []*Driver{{Name: "Solo", GlobalExclusive: true}},
+	})
+
+	group, err := dgs.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(group.Drivers) != 1 {
+		t.Fatalf("expected 1 driver, got %d", len(group.Drivers))
+	}
+	if !group.Drivers[0].GlobalExclusive {
+		t.Errorf("expected GlobalExclusive=true after Add/Get round-trip")
+	}
+}
+
+func TestDriverGroupStorage_Update_FlipsGlobalExclusive(t *testing.T) {
+	db := openTestDB(t)
+	dgs := NewDriverGroupStorage(db)
+
+	id := addGroup(t, dgs, DriverGroup{
+		Name:    "G",
+		Type:    Network,
+		Drivers: []*Driver{{Name: "D1", GlobalExclusive: false}},
+	})
+
+	group, err := dgs.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	group.Drivers[0].GlobalExclusive = true
+	if err := dgs.Update(group); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	updated, err := dgs.Get(id)
+	if err != nil {
+		t.Fatalf("Get after update: %v", err)
+	}
+	if !updated.Drivers[0].GlobalExclusive {
+		t.Errorf("expected GlobalExclusive=true after Update")
+	}
+
+	// Reverse: true → false, locking in the symmetric bool-zero path.
+	updated.Drivers[0].GlobalExclusive = false
+	if err := dgs.Update(updated); err != nil {
+		t.Fatalf("Update true→false: %v", err)
+	}
+
+	reverted, err := dgs.Get(id)
+	if err != nil {
+		t.Fatalf("Get after true→false update: %v", err)
+	}
+	if reverted.Drivers[0].GlobalExclusive {
+		t.Errorf("expected GlobalExclusive=false after true→false Update")
+	}
+}
+
+func TestDriverGroupStorage_Clone_PreservesGlobalExclusive(t *testing.T) {
+	db := openTestDB(t)
+	dgs := NewDriverGroupStorage(db)
+
+	id := addGroup(t, dgs, DriverGroup{
+		Name:    "Original",
+		Type:    Network,
+		Drivers: []*Driver{{Name: "D1", Path: "C:\\d1.exe", GlobalExclusive: true}},
+	})
+
+	if err := dgs.Clone(id); err != nil {
+		t.Fatalf("Clone: %v", err)
+	}
+
+	all, err := dgs.All()
+	if err != nil {
+		t.Fatalf("All: %v", err)
+	}
+	var clone *DriverGroup
+	for i := range all {
+		if all[i].Name == "Original (copy)" {
+			clone = &all[i]
+			break
+		}
+	}
+	if clone == nil {
+		t.Fatal("clone group not found")
+	}
+	if len(clone.Drivers) != 1 {
+		t.Fatalf("expected 1 cloned driver, got %d", len(clone.Drivers))
+	}
+	d := clone.Drivers[0]
+	if !d.GlobalExclusive {
+		t.Errorf("expected cloned GlobalExclusive=true")
+	}
+	if d.Name != "D1" || d.Path != "C:\\d1.exe" {
+		t.Errorf("clone dropped normal fields: %+v", d)
+	}
+}
+
 func TestDriverGroupStorage_MoveBehind_Forward(t *testing.T) {
 	db := openTestDB(t)
 	dgs := NewDriverGroupStorage(db)

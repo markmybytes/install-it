@@ -51,7 +51,8 @@ function addDriver() {
       flags: [],
       minExeTime: 5,
       allowRtCodes: [],
-      incompatibles: []
+      incompatibles: [],
+      globalExclusive: false
     })
   )
   // Add the element read back from the reactive array (not the raw object) so
@@ -174,7 +175,7 @@ function handleSubmit() {
 
         <div>
           <span class="block text-xs font-bold text-gray-800 xl:text-sm">{{
-            $t('fieldMutuallyExclusive')
+            $t('fieldGroupExclusive')
           }}</span>
 
           <p class="mt-0.5 text-xs text-gray-500">{{ $t('descMutuallyExclusive') }}</p>
