@@ -30,10 +30,23 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install Wails CLI
+      - name: Resolve Wails version
+        id: wails-version
         run: |
           $WAILS_VERSION = go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2
-          go install github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION
+          "version=$WAILS_VERSION" >> $env:GITHUB_OUTPUT
+
+      - name: Cache Wails CLI
+        id: wails-cache
+        uses: actions/cache@v4
+        with:
+          # ~/go/bin expands to the runner GOPATH\bin on Windows
+          path: ~/go/bin/wails.exe
+          key: wails-${{ steps.wails-version.outputs.version }}
+
+      - name: Install Wails CLI
+        if: steps.wails-cache.outputs.cache-hit != 'true'
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ steps.wails-version.outputs.version }}
 
       - name: Set up Node.js environment
         uses: actions/setup-node@v6
