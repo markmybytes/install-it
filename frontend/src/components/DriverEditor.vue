@@ -173,20 +173,12 @@ function handleRemove() {
           </span>
 
           <span
-            v-if="driver.incompatibles.length"
+            v-if="driver.incompatibles.length || driver.globalExclusive"
             class="inline-flex items-center gap-1 rounded bg-yellow-100 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-700 xl:text-xs"
-            :title="$t('labelIncompatibleWith')"
+            :title="driver.globalExclusive ? $t('fieldGlobalExclusive') : $t('labelIncompatibleWith')"
           >
-            <Icon icon="mdi:source-merge" class="h-3 w-3" />
-            {{ driver.incompatibles.length }}
-          </span>
-
-          <span
-            v-if="driver.globalExclusive"
-            class="inline-flex items-center gap-1 rounded bg-fuchsia-100 px-1.5 py-0.5 text-[10px] font-semibold text-fuchsia-700 xl:text-xs"
-            :title="$t('fieldGlobalExclusive')"
-          >
-            <Icon icon="mdi:asterisk" class="h-3 w-3" />
+            <Icon icon="mdi:chart-timeline" class="h-3 w-3" />
+            {{ driver.globalExclusive ? $t('fieldGlobalExclusive') : driver.incompatibles.length }}
           </span>
         </div>
       </div>

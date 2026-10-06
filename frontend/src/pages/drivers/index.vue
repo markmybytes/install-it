@@ -162,23 +162,15 @@ function openInspect(id: number) {
                     class="inline-flex items-center gap-0.5 rounded bg-orange-100 px-1 py-0.5 text-orange-700"
                     :title="$t('fieldGroupExclusive')"
                   >
-                    <Icon icon="mdi:chart-timeline" />
+                    <Icon icon="mdi:queue" />
                   </span>
 
                   <span
-                    v-if="g.drivers.some(d => d.globalExclusive)"
-                    class="inline-flex items-center rounded bg-fuchsia-100 px-1 py-0.5 text-fuchsia-700"
-                    :title="$t('fieldGlobalExclusive')"
-                  >
-                    <Icon icon="mdi:asterisk" />
-                  </span>
-
-                  <span
-                    v-if="g.drivers.some(d => d.incompatibles.length > 0)"
+                    v-if="g.drivers.some(d => d.incompatibles.length > 0 || d.globalExclusive)"
                     class="inline-flex items-center rounded bg-yellow-100 px-1 py-0.5 text-yellow-700"
                     :title="$t('labelIncompatibleWith')"
                   >
-                    <Icon icon="mdi:source-merge" />
+                    <Icon icon="mdi:chart-timeline" />
                   </span>
 
                   <span
