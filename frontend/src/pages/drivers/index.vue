@@ -162,7 +162,7 @@ function openInspect(id: number) {
                     class="inline-flex items-center gap-0.5 rounded bg-orange-100 px-1 py-0.5 text-orange-700"
                     :title="$t('fieldGroupExclusive')"
                   >
-                    <Icon icon="mdi:queue" />
+                    <Icon icon="mdi:queue-first-in-last-out" />
                   </span>
 
                   <span

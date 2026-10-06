@@ -156,16 +156,16 @@ function handleRemove() {
 
           <span
             v-if="driver.allowRtCodes?.length"
-            class="inline-flex items-center gap-1 rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold text-purple-600 xl:text-xs"
+            class="inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 xl:text-xs"
             :title="$t('fieldAllowedExitCode')"
           >
-            <Icon icon="mdi:alert-circle-success-outline" class="h-3 w-3" />
+            <Icon icon="mdi:numeric-1-box-outline" class="h-3 w-3" />
             {{ driver.allowRtCodes.join(', ') }}
           </span>
 
           <span
             v-if="driver.minExeTime > 0"
-            class="inline-flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 xl:text-xs"
+            class="inline-flex items-center gap-1 rounded bg-[#e5e7c8] px-1.5 py-0.5 text-[10px] font-semibold text-[#5f6a14] xl:text-xs"
             :title="$t('fieldMinExecuteTime')"
           >
             <Icon icon="mdi:timer-outline" class="h-3 w-3" />
@@ -175,7 +175,9 @@ function handleRemove() {
           <span
             v-if="driver.incompatibles.length || driver.globalExclusive"
             class="inline-flex items-center gap-1 rounded bg-yellow-100 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-700 xl:text-xs"
-            :title="driver.globalExclusive ? $t('fieldGlobalExclusive') : $t('labelIncompatibleWith')"
+            :title="
+              driver.globalExclusive ? $t('fieldGlobalExclusive') : $t('labelIncompatibleWith')
+            "
           >
             <Icon icon="mdi:chart-timeline" class="h-3 w-3" />
             {{ driver.globalExclusive ? $t('fieldGlobalExclusive') : driver.incompatibles.length }}
@@ -280,7 +282,17 @@ function handleRemove() {
           </UTooltip>
         </div>
 
-        <ChipInput v-model="driver.flags" placeholder="e.g. /S (Enter)">
+        <ChipInput
+          v-model="driver.flags"
+          placeholder="e.g. /S (Enter)"
+          style="
+            --chip-bg: #f4f4f5;
+            --chip-border: #e4e4e7;
+            --chip-text: #3f3f46;
+            --chip-close-text: #a1a1aa;
+            --chip-close-bg-hover: #e4e4e7;
+          "
+        >
           <UDropdownMenu :items="[flagItems]" :ui="{ content: 'max-h-58 overflow-y-auto' }">
             <button
               type="button"
@@ -307,13 +319,6 @@ function handleRemove() {
             :commit-keys="['enter', ' ']"
             :parse="(raw: string) => raw.trim()"
             :accept="(parsed: string) => /^-?\d+$/.test(parsed)"
-            style="
-              --chip-bg: #f4f4f5;
-              --chip-border: #e4e4e7;
-              --chip-text: #3f3f46;
-              --chip-close-text: #a1a1aa;
-              --chip-close-bg-hover: #e4e4e7;
-            "
           />
         </fieldset>
 
@@ -324,7 +329,7 @@ function handleRemove() {
             </label>
 
             <span
-              class="rounded border border-half-baked-100 bg-half-baked-50 px-2 py-0.5 font-mono text-[10px] font-extrabold text-half-baked-600 shadow-sm xl:text-xs"
+              class="rounded border border-[#d9dcb0] bg-[#e5e7c8] px-2 py-0.5 font-mono text-[10px] font-extrabold text-[#5f6a14] shadow-sm xl:text-xs"
             >
               {{ driver.minExeTime > 0 ? driver.minExeTime + 's' : '—' }}
             </span>
