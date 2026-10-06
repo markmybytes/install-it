@@ -26,6 +26,27 @@ jobs:
       - name: Run tests
         run: go test ./pkg/...
 
+      # Seed the Wails CLI cache in main's scope; the release workflow
+      # (tag runs) can restore from main but only saves into tag scope.
+      - name: Resolve Wails version
+        id: wails-version
+        if: github.ref == 'refs/heads/main'
+        run: |
+          $WAILS_VERSION = go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2
+          "version=$WAILS_VERSION" >> $env:GITHUB_OUTPUT
+
+      - name: Seed Wails CLI cache
+        if: github.ref == 'refs/heads/main'
+        id: wails-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin/wails.exe
+          key: wails-${{ steps.wails-version.outputs.version }}
+
+      - name: Install Wails CLI
+        if: github.ref == 'refs/heads/main' && steps.wails-cache.outputs.cache-hit != 'true'
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ steps.wails-version.outputs.version }}
+
   frontend-test:
     name: Frontend tests
     runs-on: ubuntu-latest
