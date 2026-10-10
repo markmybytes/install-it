@@ -345,12 +345,12 @@ export namespace sysinfo {
 	    }
 	}
 	export class ResolvedHardware {
-	    cpu: string[];
-	    gpu: string[];
-	    memory: string[];
 	    motherboard: string[];
-	    nic: string[];
+	    cpu: string[];
+	    memory: string[];
+	    gpu: string[];
 	    storage: string[];
+	    nic: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ResolvedHardware(source);
@@ -358,12 +358,12 @@ export namespace sysinfo {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.cpu = source["cpu"];
-	        this.gpu = source["gpu"];
-	        this.memory = source["memory"];
 	        this.motherboard = source["motherboard"];
-	        this.nic = source["nic"];
+	        this.cpu = source["cpu"];
+	        this.memory = source["memory"];
+	        this.gpu = source["gpu"];
 	        this.storage = source["storage"];
+	        this.nic = source["nic"];
 	    }
 	}
 

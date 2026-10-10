@@ -14,12 +14,12 @@ import (
 // ResolvedHardware holds all resolved hardware names in a single struct
 // for efficient frontend retrieval via one Wails bridge call.
 type ResolvedHardware struct {
-	Cpu         []string `json:"cpu"`
-	Gpu         []string `json:"gpu"`
-	Memory      []string `json:"memory"`
 	Motherboard []string `json:"motherboard"`
-	Nic         []string `json:"nic"`
+	Cpu         []string `json:"cpu"`
+	Memory      []string `json:"memory"`
+	Gpu         []string `json:"gpu"`
 	Storage     []string `json:"storage"`
+	Nic         []string `json:"nic"`
 }
 
 // OSInfo carries raw OS data; the frontend assembles and translates.
