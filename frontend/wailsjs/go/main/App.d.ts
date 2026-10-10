@@ -16,6 +16,8 @@ export function ExecutableExists(arg1:string):Promise<boolean>;
 
 export function PathExists(arg1:string):Promise<boolean>;
 
+export function SelectExecutable(arg1:string,arg2:string):Promise<string>;
+
 export function SelectFile(arg1:boolean):Promise<string>;
 
 export function SelectFolder(arg1:boolean):Promise<string>;

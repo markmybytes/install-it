@@ -38,15 +38,7 @@ func (a *App) SelectFolder(relative bool) (string, error) {
 	if path, err := wails_runtime.OpenDirectoryDialog(a.ctx, wails_runtime.OpenDialogOptions{}); err != nil || path == "" {
 		return "", errcode.New("errAppDialogOpen")
 	} else if relative {
-		exePath, err := os.Executable()
-		if err != nil {
-			return "", errcode.New("errAppExecLookup")
-		}
-		rel, err := filepath.Rel(filepath.Dir(exePath), path)
-		if err != nil {
-			return "", errcode.New("errAppExecLookup")
-		}
-		return rel, nil
+		return relToRoot(path)
 	} else {
 		return path, nil
 	}
@@ -68,6 +60,59 @@ func (a *App) SelectFile(relative bool) (string, error) {
 	} else {
 		return path, nil
 	}
+}
+
+// SelectExecutable opens a file dialog for a driver executable, starting from
+// the configured path's folder, then drivers/<type>, then the app root. The
+// result is always relative to the app root so exported configs stay portable.
+func (a *App) SelectExecutable(currentPath, driverType string) (string, error) {
+	// Fall back to the driver's category folder, e.g. drivers/network. A driver
+	// with no type yet has no category folder, so skip that rung entirely —
+	// an empty driverType would otherwise resolve to the drivers root.
+	fallbackDir := ""
+	if driverType != "" {
+		fallbackDir = filepath.Join(dirDir, driverType)
+	}
+
+	if path, err := wails_runtime.OpenFileDialog(a.ctx, wails_runtime.OpenDialogOptions{
+		DefaultDirectory: defaultDir(currentPath, fallbackDir),
+	}); err != nil || path == "" {
+		return "", errcode.New("errAppDialogOpen")
+	} else {
+		return relToRoot(path)
+	}
+}
+
+// relToRoot converts an absolute path to one relative to the app root, so the
+// config stays portable across install locations.
+func relToRoot(path string) (string, error) {
+	exePath, err := os.Executable()
+	if err != nil {
+		return "", errcode.New("errAppExecLookup")
+	}
+	rel, err := filepath.Rel(filepath.Dir(exePath), path)
+	if err != nil {
+		return "", errcode.New("errAppExecLookup")
+	}
+	return rel, nil
+}
+
+// defaultDir picks the folder a file dialog should open in: the configured
+// path's folder, then fallbackDir, then the app root. Each rung is used only
+// if it exists, so a stale path falls through instead of erroring.
+func defaultDir(currentPath, fallbackDir string) string {
+	if currentPath != "" {
+		d := filepath.Dir(filepath.Join(dirRoot, filepath.FromSlash(currentPath)))
+		if info, err := os.Stat(d); err == nil && info.IsDir() {
+			return d
+		}
+	}
+	if fallbackDir != "" {
+		if info, err := os.Stat(fallbackDir); err == nil && info.IsDir() {
+			return fallbackDir
+		}
+	}
+	return dirRoot
 }
 
 func (a App) PathExists(path string) bool {

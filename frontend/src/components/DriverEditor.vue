@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ChipInput from '@/components/ChipInput.vue'
 import DriverSelector from '@/components/DriverSelector.vue'
-import { ExecutableExists, SelectFile } from '@/wailsjs/go/main/App'
+import { ExecutableExists, SelectExecutable } from '@/wailsjs/go/main/App'
 import { storage } from '@/wailsjs/go/models'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -252,7 +252,7 @@ function handleRemove() {
             type="button"
             class="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-50/80 px-3.5 py-2 text-xs font-bold text-gray-700 transition-colors hover:border-half-baked-300 hover:bg-white xl:text-sm"
             @click="
-              SelectFile(true).then(path => {
+              SelectExecutable(driver.path, driver.type).then(path => {
                 if (path) driver.path = path
               })
             "
