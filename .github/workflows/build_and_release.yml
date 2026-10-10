@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  test:
+  checks:
     uses: markmybytes/install-it/.github/workflows/ci.yml@main
 
   build:

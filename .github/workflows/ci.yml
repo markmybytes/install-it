@@ -7,9 +7,13 @@ on:
     branches: [main]
   workflow_call:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   go-test:
-    name: Go tests
+    name: Go checks
     runs-on: windows-latest
     steps:
       - name: Checkout repository
@@ -20,6 +24,9 @@ jobs:
         with:
           go-version-file: "go.mod"
 
+      - name: Run vet
+        run: go vet ./...
+
       - name: Generate PCI ID database
         run: go generate ./pkg/sysinfo/...
 
@@ -27,7 +34,7 @@ jobs:
         run: go test ./pkg/...
 
   frontend-test:
-    name: Frontend tests
+    name: Frontend checks
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -45,6 +52,15 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Run type-check
+        run: npm run type-check
 
       - name: Run tests
         run: npm test
