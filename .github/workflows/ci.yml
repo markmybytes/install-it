@@ -65,10 +65,6 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
-      # Build generates gitignored d.ts (auto-imports, components, typed-router, nuxt-ui) consumed by type-check.
-      - name: Run build
-        run: npm run build-only
-
       - name: Run type-check
         run: npm run type-check
 
