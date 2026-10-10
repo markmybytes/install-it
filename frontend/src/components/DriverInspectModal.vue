@@ -153,7 +153,13 @@ watch(
                   class="mt-0.5 block font-mono text-xs font-bold xl:text-sm"
                   :class="d.globalExclusive ? 'text-fuchsia-700' : 'text-gray-700'"
                 >
-                  {{ d.globalExclusive ? $t('fieldGlobalExclusive') : d.incompatibles.length > 0 ? d.incompatibles.length : '--' }}
+                  {{
+                    d.globalExclusive
+                      ? $t('fieldGlobalExclusive')
+                      : d.incompatibles.length > 0
+                        ? d.incompatibles.length
+                        : '--'
+                  }}
                 </span>
               </div>
             </div>

@@ -10,11 +10,11 @@ permissions:
   contents: write
 
 jobs:
-  test:
-    uses: markmybytes/install-it/.github/workflows/test.yml@main
+  checks:
+    uses: markmybytes/install-it/.github/workflows/ci.yml@main
 
   build:
-    needs: test
+    needs: checks
     runs-on: windows-latest
     env:
       BUILD_NAME: windows-x64
@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Go environment
         uses: actions/setup-go@v6
