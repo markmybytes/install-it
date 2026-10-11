@@ -13,13 +13,15 @@ import (
 
 // ImportPreview describes what's in a ZIP, returned by ValidateZip and DownloadAndValidate.
 type ImportPreview struct {
-	ExportedAt  time.Time `json:"exportedAt"`
-	HasSettings bool      `json:"hasSettings"`
-	HasData     bool      `json:"hasData"`
-	HasDatabase bool      `json:"hasDatabase"`
-	HasDrivers  bool      `json:"hasDrivers"`
-	DriverCount int       `json:"driverCount"`
-	DriverSize  int64     `json:"driverSize"`
+	// RFC3339 string, not time.Time — Wails binding generator has no model
+	// for time.Time. Manifest keeps time.Time (internal, never bound).
+	ExportedAt  string `json:"exportedAt"`
+	HasSettings bool   `json:"hasSettings"`
+	HasData     bool   `json:"hasData"`
+	HasDatabase bool   `json:"hasDatabase"`
+	HasDrivers  bool   `json:"hasDrivers"`
+	DriverCount int    `json:"driverCount"`
+	DriverSize  int64  `json:"driverSize"`
 }
 
 // ImportOptions is the user's category selection for import.
@@ -106,7 +108,7 @@ func (p *Porter) ValidateZip(path string) (ImportPreview, error) {
 	}
 
 	preview := ImportPreview{
-		ExportedAt: m.ExportedAt,
+		ExportedAt: m.ExportedAt.Format(time.RFC3339),
 	}
 
 	for _, f := range zr.File {
