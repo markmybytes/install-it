@@ -30,6 +30,10 @@ export function PathExists(arg1) {
   return window['go']['main']['App']['PathExists'](arg1);
 }
 
+export function SelectExecutable(arg1, arg2) {
+  return window['go']['main']['App']['SelectExecutable'](arg1, arg2);
+}
+
 export function SelectFile(arg1) {
   return window['go']['main']['App']['SelectFile'](arg1);
 }

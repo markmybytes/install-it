@@ -90,3 +90,54 @@ func TestApp_PathExists_NonExistent(t *testing.T) {
 		t.Errorf("PathExists(%q) = true, want false for non-existent path", path)
 	}
 }
+
+func TestDefaultDir(t *testing.T) {
+	origRoot, origDir := dirRoot, dirDir
+	t.Cleanup(func() { dirRoot, dirDir = origRoot, origDir })
+
+	tests := []struct {
+		name        string
+		currentPath string
+		fallback    string // subdir of drivers to fall back to; "" skips that rung
+		want        string // "fallback", "root", or a slash path relative to root
+	}{
+		{name: "currentPath folder wins over fallback", currentPath: "drivers/network/foo.exe", fallback: "display", want: "drivers/network"},
+		{name: "no currentPath uses fallback", fallback: "display", want: "fallback"},
+		{name: "stale currentPath falls back", currentPath: "drivers/gone/foo.exe", fallback: "display", want: "fallback"},
+		{name: "stale currentPath and stale fallback return root", currentPath: "drivers/gone/foo.exe", fallback: "absent", want: "root"},
+		{name: "no fallback rung returns root", currentPath: "drivers/gone/foo.exe", want: "root"},
+		{name: "nothing configured returns root", want: "root"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			dirRoot = root
+			dirDir = filepath.Join(root, "drivers")
+			for _, sub := range []string{"network", "display"} {
+				if err := os.MkdirAll(filepath.Join(dirDir, sub), os.ModePerm); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			fallback := ""
+			if tt.fallback != "" {
+				fallback = filepath.Join(dirDir, tt.fallback)
+			}
+
+			var want string
+			switch tt.want {
+			case "fallback":
+				want = fallback
+			case "root":
+				want = dirRoot
+			default:
+				want = filepath.Join(dirRoot, filepath.FromSlash(tt.want))
+			}
+
+			if got := defaultDir(tt.currentPath, fallback); got != want {
+				t.Errorf("defaultDir(%q, %q) = %q, want %q", tt.currentPath, fallback, got, want)
+			}
+		})
+	}
+}

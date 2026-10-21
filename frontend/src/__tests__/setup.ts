@@ -15,6 +15,7 @@ vi.mock('@/wailsjs/go/main/App', () => ({
   ExecutableExists: vi.fn().mockResolvedValue(true),
   SelectFolder: vi.fn().mockResolvedValue('C:/selected'),
   SelectFile: vi.fn().mockResolvedValue('C:/selected/file.exe'),
+  SelectExecutable: vi.fn().mockResolvedValue('C:/drivers/network/setup.exe'),
   SetContext: vi.fn().mockResolvedValue(undefined),
   Update: vi.fn().mockResolvedValue(undefined),
   WebView2Version: vi.fn().mockResolvedValue('110.0.1'),
