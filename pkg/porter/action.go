@@ -2,6 +2,8 @@ package porter
 
 import (
 	"archive/zip"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -29,8 +31,9 @@ func dirSize(target string) (int64, error) {
 	return size, err
 }
 
-// toZip compresses target directories into install-it.zip at dest, writing
-// manifest.json as the first entry. Progress is reported via the job.
+// toZip compresses target directories into install-it.zip at dest. The manifest
+// is written last: its content hashes require the full walk to finish first.
+// Progress is reported via the job.
 func toZip(j *job, dest string, dirRoot string, targets []string) (err error) {
 	j.setStep("compression")
 	j.msg("Calculating total size...")
@@ -62,9 +65,9 @@ func toZip(j *job, dest string, dirRoot string, targets []string) (err error) {
 	zw := zip.NewWriter(file)
 	defer zw.Close()
 
-	if err := writeManifest(zw, newManifest()); err != nil {
-		return err
-	}
+	// Stash per-entry sha1 during the copy; the manifest (which needs the folded
+	// Data digest) can only be written after the whole walk completes.
+	fileHashes := make(map[string]string)
 
 	var written int64
 	for _, dir := range targets {
@@ -101,11 +104,14 @@ func toZip(j *job, dest string, dirRoot string, targets []string) (err error) {
 				return errcode.Newf("errExportEntryCreateFailed", map[string]any{"entry": entryName})
 			}
 
-			if _, err = io.Copy(zipEntry, srcFile); err != nil {
+			h := sha1.New()
+			if _, err = io.Copy(io.MultiWriter(zipEntry, h), srcFile); err != nil {
 				srcFile.Close()
 				return errcode.Newf("errExportEntryWriteFailed", map[string]any{"entry": entryName})
 			}
 			srcFile.Close()
+
+			fileHashes[entryName] = hex.EncodeToString(h.Sum(nil))
 
 			written += info.Size()
 			if totalSize > 0 {
@@ -117,6 +123,13 @@ func toZip(j *job, dest string, dirRoot string, targets []string) (err error) {
 		if err != nil {
 			return err
 		}
+	}
+
+	m := newManifest()
+	m.Hashes.Settings = fileHashes["conf/setting.json"]
+	m.Hashes.Data = foldDataHash(fileHashes)
+	if err := writeManifest(zw, m); err != nil {
+		return err
 	}
 
 	j.msg(fmt.Sprintf("All files packed into: %s", zipPath))

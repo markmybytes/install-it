@@ -4,7 +4,7 @@ import { porter } from '@/wailsjs/go/models'
 import { ValidateZip } from '@/wailsjs/go/porter/Porter'
 import * as appStorage from '@/wailsjs/go/storage/AppSettingStorage'
 import { decodeError } from '@/utils/index'
-import { onBeforeMount, ref, useTemplateRef } from 'vue'
+import { computed, onBeforeMount, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const toast = useToast()
@@ -26,8 +26,18 @@ const importInput = ref<{
 
 const previewOpen = ref(false)
 const preview = ref<porter.ImportPreview | null>(null)
+
+type DiffState = 'identical' | 'changed' | 'new' | 'unavailable'
+
+const diffStateMeta: Record<DiffState, { labelKey: string; badgeClass: string }> = {
+  identical: { labelKey: 'labelDiffIdentical', badgeClass: 'bg-green-50 text-green-700' },
+  changed: { labelKey: 'labelDiffChanged', badgeClass: 'bg-amber-50 text-amber-700' },
+  new: { labelKey: 'labelDiffNew', badgeClass: 'bg-blue-50 text-blue-700' },
+  unavailable: { labelKey: 'labelNotAvailable', badgeClass: 'bg-gray-100 text-gray-500' }
+}
 const previewSource = ref({ from: 'file' as 'file' | 'url', source: '' })
 const importOpts = ref({ data: true, settings: true })
+const validating = ref(false)
 
 onBeforeMount(() => {
   appStorage
@@ -57,6 +67,63 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`
 }
 
+function targetDiff(key: 'data' | 'settings'): porter.TargetDiff | null {
+  const d = preview.value?.[key]
+  return d && d.available ? d : null
+}
+
+function diffState(d: porter.TargetDiff): DiffState | null {
+  if (d.incomingPresent && d.localPresent) return d.identical ? 'identical' : 'changed'
+  if (d.incomingPresent) return 'new'
+  if (d.localPresent) return 'unavailable'
+  return null
+}
+
+function sideFacts(key: 'data' | 'settings', d: porter.TargetDiff, local: boolean): string {
+  const prefix = t(local ? 'labelDiffLocal' : 'labelDiffIncoming')
+  const count = local ? d.localCount : d.incomingCount
+  const size = local ? d.localSize : d.incomingSize
+  return key === 'settings'
+    ? `${prefix} ${formatBytes(size)}`
+    : `${prefix} ${t('labelDiffFileCount', { count })}, ${formatBytes(size)}`
+}
+
+function diffFacts(
+  key: 'data' | 'settings',
+  d: porter.TargetDiff,
+  state: DiffState
+): string | null {
+  if (state === 'unavailable') return null
+
+  if (state === 'changed') {
+    return `${sideFacts(key, d, false)} · ${sideFacts(key, d, true)}`
+  }
+
+  // identical / new: single side is enough (identical sides are equal)
+  if (state === 'identical') {
+    return key === 'settings'
+      ? formatBytes(d.incomingSize)
+      : `${t('labelDiffFileCount', { count: d.incomingCount })}, ${formatBytes(d.incomingSize)}`
+  }
+
+  return sideFacts(key, d, false)
+}
+
+function rowDiff(key: 'data' | 'settings'): { state: DiffState; facts: string | null } | null {
+  const d = targetDiff(key)
+  if (!d) return null
+
+  const state = diffState(d)
+  if (!state) return null
+
+  return { state, facts: diffFacts(key, d, state) }
+}
+
+const diffRows = computed(() => ({
+  data: rowDiff('data'),
+  settings: rowDiff('settings')
+}))
+
 function openPreview(p: porter.ImportPreview, from: 'file' | 'url', source: string) {
   preview.value = p
   previewSource.value = { from, source }
@@ -67,23 +134,34 @@ function openPreview(p: porter.ImportPreview, from: 'file' | 'url', source: stri
   previewOpen.value = true
 }
 
-function handleValidateFile() {
+async function handleValidateFile() {
+  if (validating.value) return
+
   if (!importInput.value.filePath) {
     toast.add({ title: t('errPathNotFound'), color: 'warning' })
     return
   }
 
-  ValidateZip(importInput.value.filePath)
-    .then(p => openPreview(p, 'file', importInput.value.filePath))
-    .catch(err => toast.add({ title: decodeError(err, t), color: 'error' }))
+  validating.value = true
+  try {
+    const p = await ValidateZip(importInput.value.filePath)
+    openPreview(p, 'file', importInput.value.filePath)
+  } catch (err) {
+    toast.add({ title: decodeError(err, t), color: 'error' })
+  } finally {
+    validating.value = false
+  }
 }
 
 async function handleDownloadUrl() {
+  if (validating.value) return
+
   if (!importInput.value.url) {
     toast.add({ title: t('errUnsupportedUrlProtocol'), color: 'warning' })
     return
   }
 
+  validating.value = true
   try {
     const p = await progressModal.value?.download(importInput.value.url)
     if (p) {
@@ -91,6 +169,8 @@ async function handleDownloadUrl() {
     }
   } catch {
     // error already handled in modal
+  } finally {
+    validating.value = false
   }
 }
 
@@ -262,6 +342,7 @@ function handleImport() {
           type="button"
           color="secondary"
           class="mt-3 w-28 justify-center"
+          :disabled="validating"
           @click="importInput.from == 'file' ? handleValidateFile() : handleDownloadUrl()"
         >
           {{ importInput.from == 'file' ? $t('labelValidate') : $t('labelUpdate') }}
@@ -296,20 +377,38 @@ function handleImport() {
                 :class="preview.hasData ? 'text-green-500' : 'text-gray-400'"
               />
 
-              <span>
-                {{ $t('labelData') }}
-                <template v-if="preview.hasData && (preview.hasDatabase || preview.hasDrivers)">
-                  —
-                  <template v-if="preview.hasDatabase">{{ $t('labelDatabase') }}</template>
+              <div class="min-w-0 grow">
+                <span>
+                  {{ $t('labelData') }}
+                  <template v-if="preview.hasData && (preview.hasDatabase || preview.hasDrivers)">
+                    —
+                    <template v-if="preview.hasDatabase">{{ $t('labelDatabase') }}</template>
 
-                  <template v-if="preview.hasDatabase && preview.hasDrivers">, </template>
+                    <template v-if="preview.hasDatabase && preview.hasDrivers">, </template>
 
-                  <template v-if="preview.hasDrivers">
-                    {{ $t('labelDrivers') }} ({{ preview.driverCount }} files,
-                    {{ formatBytes(preview.driverSize) }})
+                    <template v-if="preview.hasDrivers">
+                      {{ $t('labelDrivers') }} ({{ preview.driverCount }} files,
+                      {{ formatBytes(preview.driverSize) }})
+                    </template>
                   </template>
-                </template>
-              </span>
+                </span>
+
+                <div
+                  v-if="diffRows.data"
+                  class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs"
+                >
+                  <span
+                    class="rounded px-1.5 py-0.5 whitespace-nowrap"
+                    :class="diffStateMeta[diffRows.data.state].badgeClass"
+                  >
+                    {{ $t(diffStateMeta[diffRows.data.state].labelKey) }}
+                  </span>
+
+                  <span v-if="diffRows.data.facts" class="text-gray-500">
+                    {{ diffRows.data.facts }}
+                  </span>
+                </div>
+              </div>
             </li>
 
             <li class="flex items-center gap-x-2">
@@ -318,7 +417,25 @@ function handleImport() {
                 :class="preview.hasSettings ? 'text-green-500' : 'text-gray-400'"
               />
 
-              <span>{{ $t('labelSettings') }}</span>
+              <div class="min-w-0 grow">
+                <span>{{ $t('labelSettings') }}</span>
+
+                <div
+                  v-if="diffRows.settings"
+                  class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs"
+                >
+                  <span
+                    class="rounded px-1.5 py-0.5 whitespace-nowrap"
+                    :class="diffStateMeta[diffRows.settings.state].badgeClass"
+                  >
+                    {{ $t(diffStateMeta[diffRows.settings.state].labelKey) }}
+                  </span>
+
+                  <span v-if="diffRows.settings.facts" class="text-gray-500">
+                    {{ diffRows.settings.facts }}
+                  </span>
+                </div>
+              </div>
             </li>
           </ul>
         </div>

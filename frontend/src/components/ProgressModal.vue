@@ -17,7 +17,7 @@ const steps = computed(() => {
     case 'export':
       return ['initialisation', 'compression', 'complete']
     case 'download':
-      return ['initialisation', 'download', 'complete']
+      return ['initialisation', 'download', 'compare', 'complete']
     case 'import':
       return ['initialisation', 'backup', 'extract', 'cleanup', 'complete']
     default:
