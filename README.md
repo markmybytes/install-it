@@ -31,7 +31,7 @@
   </p>
 
   <p align="center">
-    <a href="https://github.com/markmybytes/install-it//README.md">English</a>
+    <a href="https://github.com/markmybytes/install-it">English</a>
     ·
     <a href="https://github.com/markmybytes/install-it/readme/README.zh_Hant.md">繁體中文</a>
   </p>
@@ -122,26 +122,26 @@ To add an installer into install-it:
 1. Place all your installer under the `driver/<category>` folder
 2. Create a installer group
    - you can add multiple installer into a single group
-   - install-it predefined three categroies: `network`, `display`, and `miscellaneous`, only `miscellaneous` allow multiple selection
+   - install-it predefined three categories: `network`, `display`, and `miscellaneous`, only `miscellaneous` allow multiple selection
 3. Enter the details for each installer
 4. Done
 
 > [!TIP]
 > It is highly recommended to provide the correct command-line options so that the installer can be executed in unattended mode to maximise functionality of install-it. <br />
-> See [Exection Option](#exection-option) section for more information.
+> See [Execution Option](#execution-option) section for more information.
 
 <details>
   <summary>[Example] Execute commands</summary>
 
   You can execute binary available in the OS `PATH` variable. In Windows, you can use CMD or Powershell to execute commands or scripts.
 
-  For CMD, you can execute commands by entering `cmd` in the path field, and `/c,<command>` in the option field. Then it is equivlent to:
+  For CMD, you can execute commands by entering `cmd` in the path field, and `/c,<command>` in the option field. Then it is equivalent to:
 
   ```batch
   cmd /c command
   ```
 
-  For Powershell, you can execute commands by entering `powershell` in the path field, and `-Command,<command>` in the option field. Then it is equivlent to:
+  For Powershell, you can execute commands by entering `powershell` in the path field, and `-Command,<command>` in the option field. Then it is equivalent to:
 
   ```batch
   powershell -Command command
@@ -151,7 +151,7 @@ To add an installer into install-it:
 <details>
   <summary>[Example] Install non-driver software</summary>
 
-  Software installer usually provides a slient install options like driver installers. For example, Steam support silent install by supplying `/S` option when you executing `SteamSetup.exe`. Explore yourself and turn install-it to your PC setup toolbox :)
+  Software installer usually provides a silent install options like driver installers. For example, Steam support silent install by supplying `/S` option when you executing `SteamSetup.exe`. Explore yourself and turn install-it to your PC setup toolbox :)
 </details>
 
 ### Execution Option
