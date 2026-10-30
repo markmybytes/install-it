@@ -77,5 +77,14 @@ cd frontend && npm run type-check
 
 ## CI
 
-- **Test workflow** (`.github/workflows/test.yml`): Runs on PRs to `main`. Executes `go test ./pkg/...` on Windows.
+- **Test workflow** (`.github/workflows/ci.yml`): Runs on PRs and pushes to `main` — Go checks (Windows) and frontend checks (lint, format, type-check, tests). See the workflow file for the exact commands.
 - **Release workflow** (`.github/workflows/build_and_release.yml`): Triggered by `v*` tags. Builds x86 + x64 Windows binaries with UPX compression, bundles WebView2 runtime, builds Python updater from separate repo, drafts GitHub release.
+
+## Related Docs
+
+| Document | Owns |
+|---|---|
+| [README.md](README.md) | Project overview, setup, and usage for humans |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow: branches, commits, PRs |
+| [STYLE.md](STYLE.md) | Coding conventions (detailed Vue/TS + Go rules) |
+| AGENTS.md | Agent-facing commands, architecture, constraints (this file) |
