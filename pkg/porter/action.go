@@ -126,6 +126,8 @@ func toZip(j *job, dest string, dirRoot string, targets []string) (err error) {
 	}
 
 	m := newManifest()
+	// Fold keys assume Targets stay [conf, drivers]; changing the export set
+	// silently breaks preview-diff equality against localDataHashes(p.DirRoot).
 	m.Hashes.Settings = fileHashes["conf/setting.json"]
 	m.Hashes.Data = foldDataHash(fileHashes)
 	if err := writeManifest(zw, m); err != nil {

@@ -16,6 +16,14 @@ func dataEntry(arcname string) bool {
 	return arcname == "conf/data.db" || strings.HasPrefix(arcname, "drivers/")
 }
 
+// localDataItem is one file candidate for the Data fold, discovered cheaply
+// (stat only) before any hashing starts.
+type localDataItem struct {
+	arcname string
+	path    string
+	size    int64
+}
+
 // foldDataHash builds the Data digest from a map of arcname -> per-file sha1 hex.
 // Dedupe is inherent (map key); callers that can see duplicate arcnames must
 // keep the LAST occurrence. Frames are sorted as full strings, byte-wise.
@@ -78,25 +86,25 @@ var localFileHashFn = localFileHash
 // localDataHashes walks DirRoot/conf/data.db and DirRoot/drivers/** (files only)
 // and returns arcname -> sha1 hex plus total size. Missing entries are skipped;
 // any read error aborts with a non-nil error.
-func localDataHashes(dirRoot string) (map[string]string, int64, error) {
-	hashes := make(map[string]string)
-	var size int64
+// tick, if non-nil, fires after every file with (done, total) bytes hashed; its
+// non-nil error aborts and is returned — use it for progress and cancellation.
+func localDataHashes(dirRoot string, tick func(done, total int64) error) (map[string]string, int64, error) {
+	// Phase 1: collect files (stat only, no reads) so Phase 2 can report
+	// byte progress without needing a second hashing pass.
+	var items []localDataItem
 
-	sum, n, present, err := localFileHashFn(filepath.Join(dirRoot, "conf", "data.db"))
-	if err != nil {
+	if it, ok, err := statLocalDataItem(dirRoot, "conf/data.db"); err != nil {
 		return nil, 0, err
-	}
-	if present {
-		hashes["conf/data.db"] = sum
-		size += n
+	} else if ok {
+		items = append(items, it)
 	}
 
 	driversRoot := filepath.Join(dirRoot, "drivers")
 	var walkErr error
-	err = filepath.Walk(driversRoot, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(driversRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			if os.IsNotExist(err) {
-				return nil
+				return nil // missing drivers dir: no driver entries
 			}
 			walkErr = err
 			return nil
@@ -109,18 +117,11 @@ func localDataHashes(dirRoot string) (map[string]string, int64, error) {
 			walkErr = relErr
 			return nil
 		}
-		sum, n, present, hashErr := localFileHashFn(path)
-		if hashErr != nil {
-			walkErr = hashErr
-			return nil
-		}
-		// File vanished mid-walk: skip the frame rather than recording an
-		// empty digest, so the fold honestly differs (reported as "changed").
-		if !present {
-			return nil
-		}
-		hashes[filepath.ToSlash(rel)] = sum
-		size += n
+		items = append(items, localDataItem{
+			arcname: filepath.ToSlash(rel),
+			path:    path,
+			size:    info.Size(),
+		})
 		return nil
 	})
 	if err != nil {
@@ -129,5 +130,49 @@ func localDataHashes(dirRoot string) (map[string]string, int64, error) {
 	if walkErr != nil {
 		return nil, 0, walkErr
 	}
-	return hashes, size, nil
+
+	// Phase 2: hash the list, reporting byte progress per file.
+	hashes := make(map[string]string, len(items))
+	var total int64
+	for _, it := range items {
+		total += it.size
+	}
+
+	var hashed int64
+	for _, it := range items {
+		sum, n, present, err := localFileHashFn(it.path)
+		if err != nil {
+			return nil, 0, err
+		}
+		// File vanished mid-walk: skip the frame rather than recording an
+		// empty digest, so the fold honestly differs (reported as "changed").
+		if !present {
+			continue
+		}
+		hashes[it.arcname] = sum
+		hashed += n
+		if tick != nil {
+			if err := tick(hashed, total); err != nil {
+				return nil, 0, err
+			}
+		}
+	}
+	return hashes, hashed, nil
+}
+
+// statLocalDataItem stats one archive-relative item under dirRoot. ok=false when
+// the file is absent (or a directory); err non-nil only on real stat failures.
+func statLocalDataItem(dirRoot, arcname string) (localDataItem, bool, error) {
+	path := filepath.Join(dirRoot, filepath.FromSlash(arcname))
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return localDataItem{}, false, nil
+		}
+		return localDataItem{}, false, err
+	}
+	if info.IsDir() {
+		return localDataItem{}, false, nil
+	}
+	return localDataItem{arcname: arcname, path: path, size: info.Size()}, true, nil
 }

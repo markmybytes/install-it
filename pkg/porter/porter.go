@@ -2,6 +2,7 @@ package porter
 
 import (
 	"archive/zip"
+	"errors"
 	"fmt"
 	"install-it/pkg/errcode"
 	"install-it/pkg/status"
@@ -10,6 +11,10 @@ import (
 	"strings"
 	"time"
 )
+
+// errImportCanceled is the sentinel cancel error; local read failures are
+// NEVER this value — dataDiff swallows the latter, propagates only the former.
+var errImportCanceled = errcode.New("errImportCanceled")
 
 // TargetDiff describes how one import category compares to the local data.
 // Available is false whenever the comparison can't be rendered (legacy manifest,
@@ -188,21 +193,47 @@ func scanZip(path string) (zipScan, error) {
 }
 
 // ValidateZip reads a ZIP's manifest and computes a preview-diff against DirRoot:
-// per-category digests (sha1), counts and sizes. Synchronous.
-func (p *Porter) ValidateZip(path string) (ImportPreview, error) {
+// per-category digests (sha1), counts and sizes. Runs as a job so the frontend
+// can poll progress (local hashing can take minutes on large driver sets).
+func (p *Porter) ValidateZip(path string) (preview ImportPreview, err error) {
+	if p.job != nil && p.job.status == status.Running {
+		return ImportPreview{}, errcode.New("errImportAlreadyRunning")
+	}
+	p.job = newJob()
+	p.job.start()
+	defer func() {
+		if err != nil {
+			p.job.fail(err)
+		} else {
+			p.job.complete()
+		}
+	}()
+
 	s, err := scanZip(path)
 	if err != nil {
 		return ImportPreview{}, err
 	}
-	return p.buildPreview(s), nil
+
+	return p.buildPreview(s)
 }
 
-// buildPreview derives the settings/data diff rows from a scan.
-func (p *Porter) buildPreview(s zipScan) ImportPreview {
+// buildPreview derives the settings/data diff rows from a scan. With a running
+// job it sets the compare step (progress is driven by localDataHashes' tick).
+// Local-read failures are swallowed (row hidden); only cancellation errors out.
+func (p *Porter) buildPreview(s zipScan) (ImportPreview, error) {
+	if p.job != nil {
+		// Live-FS hashing runs synchronously; surface progress so the UI isn't frozen.
+		p.job.setStep("compare")
+		p.job.msg("Comparing with local data...")
+	}
 	preview := s.preview()
 	preview.Settings = p.settingsDiff(s)
-	preview.Data = p.dataDiff(s)
-	return preview
+	data, err := p.dataDiff(s)
+	if err != nil {
+		return ImportPreview{}, err
+	}
+	preview.Data = data
+	return preview, nil
 }
 
 func (p *Porter) settingsDiff(s zipScan) TargetDiff {
@@ -232,7 +263,28 @@ func (p *Porter) settingsDiff(s zipScan) TargetDiff {
 	return d
 }
 
-func (p *Porter) dataDiff(s zipScan) TargetDiff {
+// dataDiffTick, if p.job is set, reports byte progress and honors Abort by
+// returning the cancel error — the hashing walk stops at the next file.
+// Returns nil with no job (e.g. direct test calls).
+func (p *Porter) dataDiffTick() func(done, total int64) error {
+	if p.job == nil {
+		return nil
+	}
+	return func(done, total int64) error {
+		p.job.mu.Lock()
+		canceled := p.job.ctx.Err() != nil
+		p.job.mu.Unlock()
+		if canceled {
+			return errImportCanceled
+		}
+		if total > 0 {
+			p.job.setProgress(float64(done) / float64(total))
+		}
+		return nil
+	}
+}
+
+func (p *Porter) dataDiff(s zipScan) (TargetDiff, error) {
 	d := TargetDiff{
 		IncomingPresent: s.hasData(),
 		IncomingCount:   boolCount(s.hasDatabase) + s.driverCount,
@@ -240,12 +292,17 @@ func (p *Porter) dataDiff(s zipScan) TargetDiff {
 	}
 
 	if !d.IncomingPresent || s.manifest.Hashes.Data == "" {
-		return d
+		return d, nil
 	}
 
-	hashes, size, err := localDataHashes(p.DirRoot)
+	hashes, size, err := localDataHashes(p.DirRoot, p.dataDiffTick())
 	if err != nil {
-		return d // local read failed: not renderable
+		// Read failures hide the row (same as settingsDiff); only the cancel
+		// sentinel propagates so the clean path surfaces Aborted, no preview.
+		if !errors.Is(err, errImportCanceled) {
+			return d, nil
+		}
+		return d, err
 	}
 
 	d.LocalPresent = len(hashes) > 0
@@ -255,7 +312,7 @@ func (p *Porter) dataDiff(s zipScan) TargetDiff {
 		d.Identical = foldDataHash(hashes) == s.manifest.Hashes.Data
 	}
 	d.Available = true
-	return d
+	return d, nil
 }
 
 // DownloadAndValidate fetches a ZIP from url, validates it,
@@ -272,6 +329,11 @@ func (p *Porter) DownloadAndValidate(url string) (preview ImportPreview, err err
 	p.job.start()
 	defer func() {
 		if err != nil {
+			// Any failure after download cancels the pending import: drop the temp
+			// ZIP so DownloadAndValidate retries stay clean.
+			if p.tempPath != "" {
+				os.Remove(p.tempPath)
+			}
 			p.tempPath = ""
 			p.job.fail(err)
 		} else {
@@ -288,15 +350,10 @@ func (p *Porter) DownloadAndValidate(url string) (preview ImportPreview, err err
 
 	s, err := scanZip(path)
 	if err != nil {
-		os.Remove(path)
-		p.tempPath = ""
 		return ImportPreview{}, err
 	}
 
-	// Live-FS hashing runs synchronously; surface progress so the UI isn't frozen.
-	p.job.setStep("compare")
-	p.job.msg("Comparing with local data...")
-	return p.buildPreview(s), nil
+	return p.buildPreview(s)
 }
 
 // ImportFromFile extracts selected categories from a local ZIP file into DirRoot.

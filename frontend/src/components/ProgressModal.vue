@@ -8,7 +8,7 @@ import { useI18n } from 'vue-i18n'
 
 const isOpen = ref(false)
 
-const mode = ref<'export' | 'import' | 'download'>('export')
+const mode = ref<'export' | 'import' | 'download' | 'validate'>('export')
 
 const snapshot = ref<porter.JobSnapshot | null>(null)
 
@@ -18,6 +18,8 @@ const steps = computed(() => {
       return ['initialisation', 'compression', 'complete']
     case 'download':
       return ['initialisation', 'download', 'compare', 'complete']
+    case 'validate':
+      return ['initialisation', 'compare', 'complete']
     case 'import':
       return ['initialisation', 'backup', 'extract', 'cleanup', 'complete']
     default:
@@ -53,6 +55,37 @@ function startPolling() {
   interval = setInterval(updateProgress, 300)
 }
 
+// runPreviewJob drives the modal for promise-returning preview flows (download,
+// validate): opens the modal, polls, resolves with the preview or toasts+rejects.
+function runPreviewJob(
+  modeName: 'download' | 'validate',
+  titleText: string,
+  op: Promise<porter.ImportPreview>
+): Promise<porter.ImportPreview> {
+  return new Promise((resolve, reject) => {
+    isOpen.value = true
+    mode.value = modeName
+    title.value = titleText
+    snapshot.value = null
+    messages.value = []
+
+    op.then((preview: porter.ImportPreview) => {
+      resolve(preview)
+      isOpen.value = false
+    })
+      .catch(err => {
+        toast.add({ title: decodeError(err, t), color: 'error' })
+        reject(err)
+      })
+      .finally(() => {
+        resetInterval()
+        updateProgress()
+      })
+
+    startPolling()
+  })
+}
+
 defineExpose({
   export: (destination: string) => {
     isOpen.value = true
@@ -71,32 +104,10 @@ defineExpose({
 
     startPolling()
   },
-  download: (url: string): Promise<porter.ImportPreview> => {
-    return new Promise((resolve, reject) => {
-      isOpen.value = true
-      mode.value = 'download'
-      title.value = t('labelUpdate')
-      snapshot.value = null
-      messages.value = []
-
-      programPorter
-        .DownloadAndValidate(url)
-        .then((preview: porter.ImportPreview) => {
-          resolve(preview)
-          isOpen.value = false
-        })
-        .catch(err => {
-          toast.add({ title: decodeError(err, t), color: 'error' })
-          reject(err)
-        })
-        .finally(() => {
-          resetInterval()
-          updateProgress()
-        })
-
-      startPolling()
-    })
-  },
+  download: (url: string): Promise<porter.ImportPreview> =>
+    runPreviewJob('download', t('labelUpdate'), programPorter.DownloadAndValidate(url)),
+  validate: (path: string): Promise<porter.ImportPreview> =>
+    runPreviewJob('validate', t('labelValidate'), programPorter.ValidateZip(path)),
   import: (from: 'url' | 'file', source: string, opts: porter.ImportOptions) => {
     isOpen.value = true
     mode.value = 'import'

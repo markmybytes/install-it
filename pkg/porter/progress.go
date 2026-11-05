@@ -11,7 +11,7 @@ import (
 // JobSnapshot is a point-in-time view of the current job, polled by the frontend.
 type JobSnapshot struct {
 	Status   status.Status `json:"status"`   // pending|running|completed|failed|aborted
-	Step     string        `json:"step"`     // "download"|"backup"|"extract"|"cleanup"|"" when idle
+	Step     string        `json:"step"`     // task phase; consumers define their own list (see ProgressModal)
 	Progress float64       `json:"progress"` // 0.0 to 1.0
 	Messages []string      `json:"messages"` // recent messages (tail)
 }

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Cwd, SelectFile, SelectFolder } from '@/wailsjs/go/main/App'
 import { porter } from '@/wailsjs/go/models'
-import { ValidateZip } from '@/wailsjs/go/porter/Porter'
 import * as appStorage from '@/wailsjs/go/storage/AppSettingStorage'
 import { decodeError } from '@/utils/index'
 import { computed, onBeforeMount, ref, useTemplateRef } from 'vue'
@@ -27,13 +26,12 @@ const importInput = ref<{
 const previewOpen = ref(false)
 const preview = ref<porter.ImportPreview | null>(null)
 
-type DiffState = 'identical' | 'changed' | 'new' | 'unavailable'
+type DiffState = 'identical' | 'changed' | 'new'
 
 const diffStateMeta: Record<DiffState, { labelKey: string; badgeClass: string }> = {
   identical: { labelKey: 'labelDiffIdentical', badgeClass: 'bg-green-50 text-green-700' },
   changed: { labelKey: 'labelDiffChanged', badgeClass: 'bg-amber-50 text-amber-700' },
-  new: { labelKey: 'labelDiffNew', badgeClass: 'bg-blue-50 text-blue-700' },
-  unavailable: { labelKey: 'labelNotAvailable', badgeClass: 'bg-gray-100 text-gray-500' }
+  new: { labelKey: 'labelDiffNew', badgeClass: 'bg-blue-50 text-blue-700' }
 }
 const previewSource = ref({ from: 'file' as 'file' | 'url', source: '' })
 const importOpts = ref({ data: true, settings: true })
@@ -72,11 +70,9 @@ function targetDiff(key: 'data' | 'settings'): porter.TargetDiff | null {
   return d && d.available ? d : null
 }
 
-function diffState(d: porter.TargetDiff): DiffState | null {
-  if (d.incomingPresent && d.localPresent) return d.identical ? 'identical' : 'changed'
-  if (d.incomingPresent) return 'new'
-  if (d.localPresent) return 'unavailable'
-  return null
+function diffState(d: porter.TargetDiff): DiffState {
+  if (d.localPresent) return d.identical ? 'identical' : 'changed'
+  return 'new'
 }
 
 function sideFacts(key: 'data' | 'settings', d: porter.TargetDiff, local: boolean): string {
@@ -88,13 +84,7 @@ function sideFacts(key: 'data' | 'settings', d: porter.TargetDiff, local: boolea
     : `${prefix} ${t('labelDiffFileCount', { count })}, ${formatBytes(size)}`
 }
 
-function diffFacts(
-  key: 'data' | 'settings',
-  d: porter.TargetDiff,
-  state: DiffState
-): string | null {
-  if (state === 'unavailable') return null
-
+function diffFacts(key: 'data' | 'settings', d: porter.TargetDiff, state: DiffState): string {
   if (state === 'changed') {
     return `${sideFacts(key, d, false)} · ${sideFacts(key, d, true)}`
   }
@@ -109,13 +99,11 @@ function diffFacts(
   return sideFacts(key, d, false)
 }
 
-function rowDiff(key: 'data' | 'settings'): { state: DiffState; facts: string | null } | null {
+function rowDiff(key: 'data' | 'settings'): { state: DiffState; facts: string } | null {
   const d = targetDiff(key)
   if (!d) return null
 
   const state = diffState(d)
-  if (!state) return null
-
   return { state, facts: diffFacts(key, d, state) }
 }
 
@@ -144,10 +132,12 @@ async function handleValidateFile() {
 
   validating.value = true
   try {
-    const p = await ValidateZip(importInput.value.filePath)
-    openPreview(p, 'file', importInput.value.filePath)
-  } catch (err) {
-    toast.add({ title: decodeError(err, t), color: 'error' })
+    const p = await progressModal.value?.validate(importInput.value.filePath)
+    if (p) {
+      openPreview(p, 'file', importInput.value.filePath)
+    }
+  } catch {
+    // error already handled in modal
   } finally {
     validating.value = false
   }
