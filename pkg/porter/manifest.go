@@ -11,6 +11,15 @@ import (
 type Manifest struct {
 	FormatVersion int       `json:"format_version"`
 	ExportedAt    time.Time `json:"exported_at"`
+	// Hashes is always emitted: encoding/json ignores omitempty on struct values.
+	// Individual keys self-omit via their own omitempty when empty.
+	Hashes Hashes `json:"hashes,omitempty"`
+}
+
+// Hashes carries content digests (sha1, lowercase hex) for preview-diff.
+type Hashes struct {
+	Settings string `json:"settings,omitempty"` // sha1 of conf/setting.json entry bytes
+	Data     string `json:"data,omitempty"`     // folded digest of conf/data.db + drivers/**
 }
 
 const CurrentFormatVersion = 1

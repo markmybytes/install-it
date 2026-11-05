@@ -14,6 +14,7 @@ function stepKey(name: string): string {
     compression: 'stepCompression',
     complete: 'complete',
     download: 'stepDownload',
+    compare: 'stepCompare',
     backup: 'stepBackup',
     extract: 'stepExtract',
     cleanup: 'stepCleanup'

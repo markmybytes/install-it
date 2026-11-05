@@ -3,10 +3,14 @@ package porter_test
 
 import (
 	"archive/zip"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -44,6 +48,15 @@ func createTestZip(t *testing.T, path string, files map[string][]byte) error {
 // createExportZip creates a valid install-it ZIP with manifest.json and the given files.
 func createExportZip(t *testing.T, path string, files map[string][]byte) error {
 	t.Helper()
+	return createExportZipWithHashes(t, path, porter.Manifest{
+		FormatVersion: porter.CurrentFormatVersion,
+		ExportedAt:    time.Now(),
+	}, files)
+}
+
+// createExportZipWithHashes writes a manifest (last) plus the given files.
+func createExportZipWithHashes(t *testing.T, path string, manifest porter.Manifest, files map[string][]byte) error {
+	t.Helper()
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -52,23 +65,6 @@ func createExportZip(t *testing.T, path string, files map[string][]byte) error {
 
 	w := zip.NewWriter(f)
 	defer w.Close()
-
-	// Write manifest as first entry using the Manifest struct
-	manifest := porter.Manifest{
-		FormatVersion: porter.CurrentFormatVersion,
-		ExportedAt:    time.Now(),
-	}
-	data, err := json.Marshal(manifest)
-	if err != nil {
-		return err
-	}
-	entry, err := w.Create("manifest.json")
-	if err != nil {
-		return err
-	}
-	if _, err := entry.Write(data); err != nil {
-		return err
-	}
 
 	for name, content := range files {
 		entry, err := w.Create(name)
@@ -79,7 +75,56 @@ func createExportZip(t *testing.T, path string, files map[string][]byte) error {
 			return err
 		}
 	}
-	return nil
+
+	data, err := json.Marshal(manifest)
+	if err != nil {
+		return err
+	}
+	entry, err := w.Create("manifest.json")
+	if err != nil {
+		return err
+	}
+	_, err = entry.Write(data)
+	return err
+}
+
+// writeLocal writes nested files under base.
+func writeLocal(t *testing.T, base string, files map[string][]byte) {
+	t.Helper()
+	for name, content := range files {
+		full := filepath.Join(base, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, content, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// sha1Hex is a direct, independent digest for test expectations.
+func sha1Hex(b []byte) string {
+	sum := sha1.Sum(b)
+	return hex.EncodeToString(sum[:])
+}
+
+// independentDataFold mirrors the documented Data recipe with stdlib only, so a
+// drift in the production fold fails the test.
+func independentDataFold(files map[string][]byte) string {
+	var frames []string
+	for name, content := range files {
+		if name != "conf/data.db" && !strings.HasPrefix(name, "drivers/") {
+			continue
+		}
+		frames = append(frames, fmt.Sprintf("%d:%s:%s\n", len(name), name, sha1Hex(content)))
+	}
+	sort.Strings(frames)
+
+	h := sha1.New()
+	for _, frame := range frames {
+		h.Write([]byte(frame))
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // ==================== JobSnapshot / Progress ====================
@@ -777,5 +822,213 @@ func TestPorter_HooksNotCalledWhenDBNotInBackup(t *testing.T) {
 	}
 	if afterCalled {
 		t.Error("OnAfterImport should not have been called")
+	}
+}
+
+// ==================== Manifest hashes / preview diff ====================
+
+func TestExport_ManifestLastWithHashes(t *testing.T) {
+	base := t.TempDir()
+	files := map[string][]byte{
+		"conf/setting.json":      []byte(`{"a":1}`),
+		"conf/data.db":           []byte("db-bytes"),
+		"drivers/net/driver.inf": []byte("inf-bytes"),
+	}
+	writeLocal(t, base, files)
+
+	dest := t.TempDir()
+	p := &porter.Porter{
+		DirRoot: base,
+		Targets: []string{filepath.Join(base, "conf"), filepath.Join(base, "drivers")},
+	}
+	if err := p.Export(dest); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+
+	r, err := zip.OpenReader(filepath.Join(dest, "install-it.zip"))
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+	defer r.Close()
+
+	last := r.File[len(r.File)-1]
+	if last.Name != "manifest.json" {
+		t.Fatalf("manifest must be the last entry, got %q", last.Name)
+	}
+
+	rc, err := last.Open()
+	if err != nil {
+		t.Fatalf("open manifest: %v", err)
+	}
+	defer rc.Close()
+
+	var m porter.Manifest
+	if err := json.NewDecoder(rc).Decode(&m); err != nil {
+		t.Fatalf("decode manifest: %v", err)
+	}
+
+	if got, want := m.Hashes.Settings, sha1Hex(files["conf/setting.json"]); got != want {
+		t.Errorf("settings hash: got %q want %q", got, want)
+	}
+	if got, want := m.Hashes.Data, independentDataFold(files); got != want {
+		t.Errorf("data hash: got %q want %q", got, want)
+	}
+}
+
+// TestExport_SettingsOnly_NoDataKey: a settings-only export (no conf/data.db,
+// no drivers/**) folds to an empty Data digest, so the manifest must omit the
+// "data" key entirely rather than emitting a non-empty sha1("") digest.
+func TestExport_SettingsOnly_NoDataKey(t *testing.T) {
+	base := t.TempDir()
+	writeLocal(t, base, map[string][]byte{"conf/setting.json": []byte(`{"a":1}`)})
+
+	dest := t.TempDir()
+	p := &porter.Porter{
+		DirRoot: base,
+		Targets: []string{filepath.Join(base, "conf")},
+	}
+	if err := p.Export(dest); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+
+	r, err := zip.OpenReader(filepath.Join(dest, "install-it.zip"))
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+	defer r.Close()
+
+	found := false
+	for _, f := range r.File {
+		if f.Name != "manifest.json" {
+			continue
+		}
+		found = true
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatalf("open manifest: %v", err)
+		}
+		defer rc.Close()
+
+		var m struct {
+			Hashes map[string]json.RawMessage `json:"hashes"`
+		}
+		if err := json.NewDecoder(rc).Decode(&m); err != nil {
+			t.Fatalf("decode manifest: %v", err)
+		}
+		if data, ok := m.Hashes["data"]; ok {
+			t.Errorf("settings-only export must omit hashes.data, got %s", data)
+		}
+		if _, ok := m.Hashes["settings"]; !ok {
+			t.Errorf("settings hash should be present: %+v", m.Hashes)
+		}
+	}
+	if !found {
+		t.Fatal("manifest.json not found in export")
+	}
+}
+
+func TestValidateZip_PreviewCompare(t *testing.T) {
+	base := t.TempDir()
+	files := map[string][]byte{
+		"conf/setting.json":      []byte(`{"a":1}`),
+		"conf/data.db":           []byte("db-bytes"),
+		"drivers/net/driver.inf": []byte("inf-bytes"),
+	}
+	writeLocal(t, base, files)
+
+	dest := t.TempDir()
+	p := &porter.Porter{
+		DirRoot: base,
+		Targets: []string{filepath.Join(base, "conf"), filepath.Join(base, "drivers")},
+	}
+	if err := p.Export(dest); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	zipPath := filepath.Join(dest, "install-it.zip")
+
+	preview, err := p.ValidateZip(zipPath)
+	if err != nil {
+		t.Fatalf("ValidateZip: %v", err)
+	}
+	if !preview.Settings.Available || !preview.Settings.Identical {
+		t.Errorf("settings should be available+identical: %+v", preview.Settings)
+	}
+	if !preview.Data.Available || !preview.Data.Identical {
+		t.Errorf("data should be available+identical: %+v", preview.Data)
+	}
+	if !preview.Settings.LocalPresent || !preview.Data.LocalPresent {
+		t.Errorf("local should be present: %+v %+v", preview.Settings, preview.Data)
+	}
+	if preview.Data.LocalCount != 2 {
+		t.Errorf("data local count: got %d want 2", preview.Data.LocalCount)
+	}
+
+	// Modify a local driver file: data differs, settings untouched.
+	writeLocal(t, base, map[string][]byte{"drivers/net/driver.inf": []byte("changed")})
+
+	preview2, err := p.ValidateZip(zipPath)
+	if err != nil {
+		t.Fatalf("ValidateZip (modified): %v", err)
+	}
+	if !preview2.Data.Available {
+		t.Errorf("data should remain available after local edit: %+v", preview2.Data)
+	}
+	if preview2.Data.Identical {
+		t.Error("data should not be identical after local modification")
+	}
+	if !preview2.Settings.Identical {
+		t.Error("settings should remain identical")
+	}
+}
+
+func TestValidateZip_LegacyManifestNoHashes(t *testing.T) {
+	base := t.TempDir()
+	zipPath := filepath.Join(base, "legacy.zip")
+	if err := createExportZip(t, zipPath, map[string][]byte{
+		"conf/setting.json": []byte(`{}`),
+		"conf/data.db":      []byte("x"),
+	}); err != nil {
+		t.Fatalf("createExportZip: %v", err)
+	}
+
+	p := &porter.Porter{DirRoot: t.TempDir()}
+	preview, err := p.ValidateZip(zipPath)
+	if err != nil {
+		t.Fatalf("ValidateZip: %v", err)
+	}
+	if preview.Settings.Available || preview.Data.Available {
+		t.Errorf("legacy manifest must yield Available=false: %+v %+v", preview.Settings, preview.Data)
+	}
+}
+
+func TestValidateZip_HashPresentEntryMissing(t *testing.T) {
+	base := t.TempDir()
+	zipPath := filepath.Join(base, "x.zip")
+	if err := createExportZipWithHashes(t, zipPath, porter.Manifest{
+		FormatVersion: porter.CurrentFormatVersion,
+		ExportedAt:    time.Now(),
+		Hashes:        porter.Hashes{Settings: "aaaa", Data: "bbbb"},
+	}, map[string][]byte{
+		"conf/setting.json": []byte(`{}`),
+	}); err != nil {
+		t.Fatalf("createExportZipWithHashes: %v", err)
+	}
+
+	p := &porter.Porter{DirRoot: t.TempDir()}
+	preview, err := p.ValidateZip(zipPath)
+	if err != nil {
+		t.Fatalf("ValidateZip: %v", err)
+	}
+	if preview.Data.Available {
+		t.Error("data hash without data entries must be Available=false")
+	}
+	if preview.Data.IncomingPresent {
+		t.Error("data IncomingPresent must be false when entries missing")
+	}
+	if !preview.Settings.Available {
+		t.Errorf("settings should still be available: %+v", preview.Settings)
+	}
+	if preview.Settings.LocalPresent || preview.Settings.Identical {
+		t.Errorf("missing local settings: expect LocalPresent=false, Identical=false: %+v", preview.Settings)
 	}
 }

@@ -2,6 +2,7 @@ package porter
 
 import (
 	"archive/zip"
+	"errors"
 	"fmt"
 	"install-it/pkg/errcode"
 	"install-it/pkg/status"
@@ -10,6 +11,24 @@ import (
 	"strings"
 	"time"
 )
+
+// errImportCanceled is the sentinel cancel error; local read failures are
+// NEVER this value — dataDiff swallows the latter, propagates only the former.
+var errImportCanceled = errcode.New("errImportCanceled")
+
+// TargetDiff describes how one import category compares to the local data.
+// Available is false whenever the comparison can't be rendered (legacy manifest,
+// missing incoming hash, or a local read failure) — the frontend hides the row.
+type TargetDiff struct {
+	Available       bool  `json:"available"`
+	IncomingPresent bool  `json:"incomingPresent"`
+	LocalPresent    bool  `json:"localPresent"`
+	Identical       bool  `json:"identical"`
+	IncomingCount   int64 `json:"incomingCount"`
+	IncomingSize    int64 `json:"incomingSize"`
+	LocalCount      int64 `json:"localCount"`
+	LocalSize       int64 `json:"localSize"`
+}
 
 // ImportPreview describes what's in a ZIP, returned by ValidateZip and DownloadAndValidate.
 type ImportPreview struct {
@@ -22,6 +41,9 @@ type ImportPreview struct {
 	HasDrivers  bool   `json:"hasDrivers"`
 	DriverCount int    `json:"driverCount"`
 	DriverSize  int64  `json:"driverSize"`
+
+	Settings TargetDiff `json:"settings"`
+	Data     TargetDiff `json:"data"`
 }
 
 // ImportOptions is the user's category selection for import.
@@ -90,53 +112,207 @@ func (p *Porter) Export(dest string) (err error) {
 	return toZip(p.job, dest, p.DirRoot, p.Targets)
 }
 
-// ValidateZip reads the manifest and scans ZIP entries for recognized data.
-func (p *Porter) ValidateZip(path string) (ImportPreview, error) {
+// zipScan is the result of scanning a ZIP + manifest. It never touches the live
+// filesystem, so it is cheap enough to reuse on the import path.
+type zipScan struct {
+	manifest     Manifest
+	hasSettings  bool
+	hasDatabase  bool
+	hasDrivers   bool
+	driverCount  int64
+	driverSize   int64
+	settingsSize int64
+	databaseSize int64
+}
+
+func (s zipScan) hasData() bool { return s.hasDatabase || s.hasDrivers }
+
+func (s zipScan) preview() ImportPreview {
+	return ImportPreview{
+		ExportedAt:  s.manifest.ExportedAt.Format(time.RFC3339),
+		HasSettings: s.hasSettings,
+		HasData:     s.hasData(),
+		HasDatabase: s.hasDatabase,
+		HasDrivers:  s.hasDrivers,
+		DriverCount: int(s.driverCount),
+		DriverSize:  s.driverSize,
+	}
+}
+
+func boolCount(b bool) int64 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// scanZip opens path, reads the manifest and counts recognized entries. It is
+// the shared validation core: no live-FS hashing, so imports don't pay for it.
+func scanZip(path string) (zipScan, error) {
 	zr, err := zip.OpenReader(path)
 	if err != nil {
-		return ImportPreview{}, errcode.New("errImportFileOpen")
+		return zipScan{}, errcode.New("errImportFileOpen")
 	}
 	defer zr.Close()
 
 	m, err := readManifest(zr)
 	if err != nil {
-		return ImportPreview{}, err
+		return zipScan{}, err
 	}
 
 	if m.FormatVersion != CurrentFormatVersion {
-		return ImportPreview{}, errcode.Newf("errImportVersionUnsupported", map[string]any{"version": m.FormatVersion, "expected": CurrentFormatVersion})
+		return zipScan{}, errcode.Newf("errImportVersionUnsupported", map[string]any{"version": m.FormatVersion, "expected": CurrentFormatVersion})
 	}
 
-	preview := ImportPreview{
-		ExportedAt: m.ExportedAt.Format(time.RFC3339),
-	}
-
+	s := zipScan{manifest: m}
 	for _, f := range zr.File {
 		name := filepath.ToSlash(f.Name)
+		size := int64(f.FileInfo().Size())
 
 		switch {
 		case name == "conf/setting.json":
-			preview.HasSettings = true
+			s.hasSettings = true
+			s.settingsSize = size
 		case name == "conf/data.db":
-			preview.HasDatabase = true
+			s.hasDatabase = true
+			s.databaseSize = size
 		case strings.HasPrefix(name, "drivers/"):
-			if !preview.HasDrivers {
-				preview.HasDrivers = true
-			}
+			s.hasDrivers = true
 			if !f.FileInfo().IsDir() {
-				preview.DriverCount++
-				preview.DriverSize += int64(f.FileInfo().Size())
+				s.driverCount++
+				s.driverSize += size
 			}
 		}
 	}
 
-	preview.HasData = preview.HasDatabase || preview.HasDrivers
-
-	if !preview.HasSettings && !preview.HasData {
-		return ImportPreview{}, errcode.New("errImportNoData")
+	if !s.hasSettings && !s.hasData() {
+		return zipScan{}, errcode.New("errImportNoData")
 	}
 
+	return s, nil
+}
+
+// ValidateZip reads a ZIP's manifest and computes a preview-diff against DirRoot:
+// per-category digests (sha1), counts and sizes. Runs as a job so the frontend
+// can poll progress (local hashing can take minutes on large driver sets).
+func (p *Porter) ValidateZip(path string) (preview ImportPreview, err error) {
+	if p.job != nil && p.job.status == status.Running {
+		return ImportPreview{}, errcode.New("errImportAlreadyRunning")
+	}
+	p.job = newJob()
+	p.job.start()
+	defer func() {
+		if err != nil {
+			p.job.fail(err)
+		} else {
+			p.job.complete()
+		}
+	}()
+
+	s, err := scanZip(path)
+	if err != nil {
+		return ImportPreview{}, err
+	}
+
+	return p.buildPreview(s)
+}
+
+// buildPreview derives the settings/data diff rows from a scan. With a running
+// job it sets the compare step (progress is driven by localDataHashes' tick).
+// Local-read failures are swallowed (row hidden); only cancellation errors out.
+func (p *Porter) buildPreview(s zipScan) (ImportPreview, error) {
+	if p.job != nil {
+		// Live-FS hashing runs synchronously; surface progress so the UI isn't frozen.
+		p.job.setStep("compare")
+		p.job.msg("Comparing with local data...")
+	}
+	preview := s.preview()
+	preview.Settings = p.settingsDiff(s)
+	data, err := p.dataDiff(s)
+	if err != nil {
+		return ImportPreview{}, err
+	}
+	preview.Data = data
 	return preview, nil
+}
+
+func (p *Porter) settingsDiff(s zipScan) TargetDiff {
+	d := TargetDiff{
+		IncomingPresent: s.hasSettings,
+		IncomingCount:   boolCount(s.hasSettings),
+		IncomingSize:    s.settingsSize,
+	}
+
+	// Legacy / missing incoming hash, or hash disagrees with the entry scan.
+	if !s.hasSettings || s.manifest.Hashes.Settings == "" {
+		return d
+	}
+
+	sum, size, present, err := localFileHashFn(filepath.Join(p.DirRoot, "conf", "setting.json"))
+	if err != nil {
+		return d // local read failed: not renderable
+	}
+
+	d.LocalPresent = present
+	if present {
+		d.LocalCount = 1
+		d.LocalSize = size
+		d.Identical = sum == s.manifest.Hashes.Settings
+	}
+	d.Available = true
+	return d
+}
+
+// dataDiffTick, if p.job is set, reports byte progress and honors Abort by
+// returning the cancel error — the hashing walk stops at the next file.
+// Returns nil with no job (e.g. direct test calls).
+func (p *Porter) dataDiffTick() func(done, total int64) error {
+	if p.job == nil {
+		return nil
+	}
+	return func(done, total int64) error {
+		p.job.mu.Lock()
+		canceled := p.job.ctx.Err() != nil
+		p.job.mu.Unlock()
+		if canceled {
+			return errImportCanceled
+		}
+		if total > 0 {
+			p.job.setProgress(float64(done) / float64(total))
+		}
+		return nil
+	}
+}
+
+func (p *Porter) dataDiff(s zipScan) (TargetDiff, error) {
+	d := TargetDiff{
+		IncomingPresent: s.hasData(),
+		IncomingCount:   boolCount(s.hasDatabase) + s.driverCount,
+		IncomingSize:    s.databaseSize + s.driverSize,
+	}
+
+	if !d.IncomingPresent || s.manifest.Hashes.Data == "" {
+		return d, nil
+	}
+
+	hashes, size, err := localDataHashes(p.DirRoot, p.dataDiffTick())
+	if err != nil {
+		// Read failures hide the row (same as settingsDiff); only the cancel
+		// sentinel propagates so the clean path surfaces Aborted, no preview.
+		if !errors.Is(err, errImportCanceled) {
+			return d, nil
+		}
+		return d, err
+	}
+
+	d.LocalPresent = len(hashes) > 0
+	d.LocalCount = int64(len(hashes))
+	d.LocalSize = size
+	if d.LocalPresent {
+		d.Identical = foldDataHash(hashes) == s.manifest.Hashes.Data
+	}
+	d.Available = true
+	return d, nil
 }
 
 // DownloadAndValidate fetches a ZIP from url, validates it,
@@ -153,6 +329,11 @@ func (p *Porter) DownloadAndValidate(url string) (preview ImportPreview, err err
 	p.job.start()
 	defer func() {
 		if err != nil {
+			// Any failure after download cancels the pending import: drop the temp
+			// ZIP so DownloadAndValidate retries stay clean.
+			if p.tempPath != "" {
+				os.Remove(p.tempPath)
+			}
 			p.tempPath = ""
 			p.job.fail(err)
 		} else {
@@ -167,14 +348,12 @@ func (p *Porter) DownloadAndValidate(url string) (preview ImportPreview, err err
 
 	p.tempPath = path
 
-	preview, err = p.ValidateZip(path)
+	s, err := scanZip(path)
 	if err != nil {
-		os.Remove(path)
-		p.tempPath = ""
 		return ImportPreview{}, err
 	}
 
-	return preview, nil
+	return p.buildPreview(s)
 }
 
 // ImportFromFile extracts selected categories from a local ZIP file into DirRoot.
@@ -201,11 +380,12 @@ func (p *Porter) ImportFromFile(path string, opts ImportOptions) (err error) {
 		}
 	}()
 
-	preview, err := p.ValidateZip(path)
+	scan, err := scanZip(path)
 	if err != nil {
 		p.job.fail(err)
 		return err
 	}
+	preview := scan.preview()
 
 	// Compute backup set: files and dirs that are in ZIP ∩ selected by opts ∩ exist on disk
 	var backupFiles, backupDirs []string
