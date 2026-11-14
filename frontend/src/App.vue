@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { decodeError } from '@/utils/index'
 import * as appSettingStorage from '@/wailsjs/go/storage/AppSettingStorage'
 import * as driverGroupStorage from '@/wailsjs/go/storage/DriverGroupStorage'
 import * as ruleSetStorage from '@/wailsjs/go/storage/RuleSetStorage'
@@ -6,7 +7,6 @@ import { CheckForUpdates } from '@/wailsjs/go/update/Updater'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RouteLocationRaw } from 'vue-router'
-import { decodeError } from '@/utils/index'
 
 const { t, locale } = useI18n()
 
@@ -56,14 +56,14 @@ Promise.all([
   })
   .finally(() => (initilisating.value = false))
 
-const routes: Array<{ to: RouteLocationRaw; icon: string }> = [
-  { to: '/', icon: 'mdi:home' },
-  { to: '/drivers', icon: 'mdi:file-code' },
-  { to: '/match-rules', icon: 'mdi:crosshairs-gps' },
-  { to: '/system-utilities', icon: 'mdi:interaction-tap' },
-  { to: '/porter', icon: 'mdi:import-export-bold' },
-  { to: '/settings', icon: 'mdi:cog' },
-  { to: '/app-info', icon: 'mdi:information' }
+const routes: Array<{ to: RouteLocationRaw; icon: string; title: string }> = [
+  { to: '/', icon: 'mdi:home', title: 'titleHome' },
+  { to: '/drivers', icon: 'mdi:package-variant-closed', title: 'fieldInstallOption' },
+  { to: '/match-rules', icon: 'mdi:filter-variant', title: 'titleMatchRule' },
+  { to: '/system-utilities', icon: 'mdi:button-pointer', title: 'titleSetupTools' },
+  { to: '/porter', icon: 'mdi:import-export-bold', title: 'titleImportExport' },
+  { to: '/settings', icon: 'mdi:cog', title: 'titleSettings' },
+  { to: '/app-info', icon: 'mdi:information', title: 'titleAbout' }
 ]
 </script>
 
@@ -80,11 +80,12 @@ const routes: Array<{ to: RouteLocationRaw; icon: string }> = [
           <aside class="w-12">
             <div class="flex h-full justify-center bg-gray-50">
               <ul class="mt-6 space-y-3 font-medium">
-                <li v-for="(link, i) in routes" :key="i">
+                <li v-for="link in routes" :key="link.to as string">
                   <RouterLink
                     :to="link.to"
-                    class="flex rounded-lg p-2 hover:bg-gray-200"
+                    class="flex rounded-lg p-2 hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-apple-green-600"
                     active-class="text-apple-green-800 bg-powder-blue-100"
+                    :title="t(link.title)"
                     draggable="false"
                   >
                     <div class="relative">
