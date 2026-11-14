@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { decodeError } from '@/utils/index'
 import * as appSettingStorage from '@/wailsjs/go/storage/AppSettingStorage'
 import * as driverGroupStorage from '@/wailsjs/go/storage/DriverGroupStorage'
 import * as ruleSetStorage from '@/wailsjs/go/storage/RuleSetStorage'
@@ -6,7 +7,6 @@ import { CheckForUpdates } from '@/wailsjs/go/update/Updater'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RouteLocationRaw } from 'vue-router'
-import { decodeError } from '@/utils/index'
 
 const { t, locale } = useI18n()
 
@@ -60,8 +60,8 @@ const routes: Array<{ to: RouteLocationRaw; icon: string; title: string }> = [
   { to: '/', icon: 'mdi:home', title: 'titleHome' },
   { to: '/drivers', icon: 'mdi:package-variant-closed', title: 'fieldInstallOption' },
   { to: '/match-rules', icon: 'mdi:filter-variant', title: 'titleMatchRule' },
-  { to: '/system-utilities', icon: 'mdi:tools', title: 'titleSetupTools' },
-  { to: '/porter', icon: 'mdi:import-export', title: 'titleImportExport' },
+  { to: '/system-utilities', icon: 'mdi:button-pointer', title: 'titleSetupTools' },
+  { to: '/porter', icon: 'mdi:import-export-bold', title: 'titleImportExport' },
   { to: '/settings', icon: 'mdi:cog', title: 'titleSettings' },
   { to: '/app-info', icon: 'mdi:information', title: 'titleAbout' }
 ]
