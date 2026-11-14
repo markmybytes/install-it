@@ -44,6 +44,25 @@ const selectedDisplay = ref<number>(0)
 const selectedMiscellaneous = ref<number[]>([])
 const matching = ref(false)
 
+const largeView = ref(false)
+
+function onLargeViewKey(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    largeView.value = false
+  }
+}
+
+function openLargeView() {
+  loadSystemInfo()
+  largeView.value = true
+  window.addEventListener('keydown', onLargeViewKey)
+}
+
+function closeLargeView() {
+  largeView.value = false
+  window.removeEventListener('keydown', onLargeViewKey)
+}
+
 function loadSystemInfo() {
   Promise.all([utils.getHardware(), utils.getOSInfo()]).then(([hw, os]) => {
     systemInfo.value = { hw, os }
@@ -203,6 +222,8 @@ async function handleSubmit() {
 }
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onLargeViewKey)
+
   if (timer !== null) {
     clearTimeout(timer)
     timer = null
@@ -212,7 +233,18 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex h-full flex-col">
-    <div class="flex flex-1 flex-col gap-y-1 overflow-y-auto rounded-sm border p-1">
+    <div class="relative flex flex-1 flex-col gap-y-1 overflow-y-auto rounded-sm border p-1">
+      <UButton
+        icon="mdi:fullscreen"
+        variant="ghost"
+        color="neutral"
+        size="xs"
+        class="absolute end-1 top-1 z-10"
+        :disabled="systemInfo.hw === null"
+        :aria-label="$t('titleLargeView')"
+        @click="openLargeView"
+      />
+
       <template v-if="systemInfo.hw !== null && systemInfo.os !== null">
         <div v-for="[part, names] in Object.entries(systemInfo.hw)" :key="part">
           <h2 class="text-sm font-bold">
@@ -445,6 +477,43 @@ onBeforeUnmount(() => {
             {{ $t('actionExecute') }}
           </UButton>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div v-if="largeView" class="fixed inset-0 z-50 overflow-y-auto bg-white text-gray-900">
+    <UButton
+      icon="mdi:close"
+      variant="ghost"
+      color="neutral"
+      class="absolute end-6 top-6 text-2xl"
+      :aria-label="$t('close')"
+      @click="closeLargeView"
+    />
+
+    <div class="mx-auto max-w-4xl space-y-10 px-10 py-12">
+      <div v-for="[part, names] in Object.entries(systemInfo.hw!)" :key="part">
+        <h2 class="text-xl font-bold tracking-wide text-gray-500">
+          {{ $t(hwKey(part)) }}
+        </h2>
+
+        <p
+          v-for="(name, i) in names"
+          :key="i"
+          class="mt-2 text-3xl leading-snug font-semibold break-words text-gray-900"
+        >
+          {{ name }}
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-bold tracking-wide text-gray-500">{{ $t('hwOs') }}</h2>
+
+        <p class="mt-2 text-3xl leading-snug font-semibold text-gray-900">
+          {{ [systemInfo.os!.caption, systemInfo.os!.displayVersion].filter(Boolean).join(' ') }}
+          —
+          {{ $t(systemInfo.os!.activated ? 'osActivationActivated' : 'osActivationNotActivated') }}
+        </p>
       </div>
     </div>
   </div>
