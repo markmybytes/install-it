@@ -441,7 +441,7 @@ onBeforeUnmount(() => {
             {{ $t('actionReset') }}
           </UButton>
 
-          <UButton color="secondary" @click="handleSubmit">
+          <UButton color="secondary" :disabled="matching" @click="handleSubmit">
             {{ $t('actionExecute') }}
           </UButton>
         </div>
