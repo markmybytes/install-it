@@ -4,7 +4,7 @@ import * as appSettingStorage from '@/wailsjs/go/storage/AppSettingStorage'
 import * as driverGroupStorage from '@/wailsjs/go/storage/DriverGroupStorage'
 import * as ruleSetStorage from '@/wailsjs/go/storage/RuleSetStorage'
 import { CheckForUpdates } from '@/wailsjs/go/update/Updater'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RouteLocationRaw } from 'vue-router'
 
@@ -20,6 +20,15 @@ const [settingsStore, groupStore, matchStore, unsavedFormStore] = [
 ]
 
 const initilisating = ref(true)
+
+watch(
+  () => settingsStore.settings.ui_scale,
+  scale => {
+    const pct = Number(scale) || 100
+    document.documentElement.style.fontSize = `${(pct / 100) * 100}%`
+  },
+  { immediate: true }
+)
 
 const hasUpdate = ref(false)
 

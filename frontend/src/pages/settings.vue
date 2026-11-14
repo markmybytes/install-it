@@ -259,6 +259,23 @@ function handleSubmit() {
           <hr class="border-gray-100 dark:border-gray-800" />
 
           <section>
+            <h3 class="mb-3 text-lg font-bold">{{ $t('settingTextScale') }}</h3>
+
+            <div class="flex flex-col gap-y-1">
+              <USelect
+                v-model="settings.ui_scale"
+                name="ui_scale"
+                color="primary"
+                variant="outline"
+                class="w-56"
+                :items="[100, 125, 150].map(v => ({ label: `${v}%`, value: v }))"
+              />
+            </div>
+          </section>
+
+          <hr class="border-gray-100 dark:border-gray-800" />
+
+          <section>
             <h3 class="mb-3 text-lg font-bold">{{ $t('settingCPUTemp') }}</h3>
 
             <div class="my-3 flex gap-x-2 border-s-2 border-warning-500 py-1 ps-3">

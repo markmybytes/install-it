@@ -190,6 +190,7 @@
   "settingSuccessAction": "On Completion",
   "settingSuccessActionDelay": "Success Action Delay",
   "settingTask": "Task",
+  "settingTextScale": "Text Size",
   "statusAborted": "aborted",
   "statusAborting": "aborting",
   "statusCompleted": "completed",

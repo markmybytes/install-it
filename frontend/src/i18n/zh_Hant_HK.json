@@ -190,6 +190,7 @@
   "settingSuccessAction": "關機設定",
   "settingSuccessActionDelay": "關機選項延遲",
   "settingTask": "額外工作",
+  "settingTextScale": "介面文字大小",
   "statusAborted": "已取消",
   "statusAborting": "取消中",
   "statusCompleted": "完成",
