@@ -481,35 +481,31 @@ onBeforeUnmount(() => {
     </div>
   </div>
 
-  <div v-if="largeView" class="fixed inset-0 z-50 overflow-y-auto bg-white text-gray-900">
+  <div v-if="largeView" class="fixed inset-0 z-50 overflow-y-auto bg-white">
     <UButton
       icon="mdi:close"
       variant="ghost"
       color="neutral"
-      class="absolute end-6 top-6 text-2xl"
+      class="absolute end-5 top-5 text-neutral-500 hover:text-neutral-900"
       :aria-label="$t('close')"
       @click="closeLargeView"
     />
 
-    <div class="mx-auto max-w-4xl space-y-10 px-10 py-12">
-      <div v-for="[part, names] in Object.entries(systemInfo.hw!)" :key="part">
-        <h2 class="text-xl font-bold tracking-wide text-gray-500">
+    <div class="mx-auto max-w-4xl px-10 py-16">
+      <div v-for="[part, names] in Object.entries(systemInfo.hw!)" :key="part" class="mb-8">
+        <h2 class="text-2xl font-bold">
           {{ $t(hwKey(part)) }}
         </h2>
 
-        <p
-          v-for="(name, i) in names"
-          :key="i"
-          class="mt-2 text-3xl leading-snug font-semibold break-words text-gray-900"
-        >
+        <p v-for="(name, i) in names" :key="i" class="mt-1 text-3xl">
           {{ name }}
         </p>
       </div>
 
       <div>
-        <h2 class="text-xl font-bold tracking-wide text-gray-500">{{ $t('hwOs') }}</h2>
+        <h2 class="text-2xl font-bold">{{ $t('hwOs') }}</h2>
 
-        <p class="mt-2 text-3xl leading-snug font-semibold text-gray-900">
+        <p class="mt-1 text-3xl">
           {{ [systemInfo.os!.caption, systemInfo.os!.displayVersion].filter(Boolean).join(' ') }}
           —
           {{ $t(systemInfo.os!.activated ? 'osActivationActivated' : 'osActivationNotActivated') }}
