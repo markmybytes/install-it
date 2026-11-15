@@ -24,8 +24,7 @@ const initilisating = ref(true)
 watch(
   () => settingsStore.settings.ui_scale,
   scale => {
-    const pct = Number(scale) || 100
-    document.documentElement.style.fontSize = `${(pct / 100) * 100}%`
+    document.documentElement.style.fontSize = `${Number(scale) || 100}%`
   },
   { immediate: true }
 )
