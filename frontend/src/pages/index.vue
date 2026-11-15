@@ -242,7 +242,7 @@ onBeforeUnmount(() => {
         variant="ghost"
         color="neutral"
         size="xs"
-        class="absolute end-1 top-1 z-10"
+        class="absolute inset-e-1 top-1 z-10"
         :disabled="systemInfo.hw === null"
         :aria-label="$t('titleLargeView')"
         @click="openLargeView"
@@ -323,7 +323,7 @@ onBeforeUnmount(() => {
       <div class="flex flex-1">
         <div class="relative mb-3 h-full w-full">
           <label
-            class="pointer-events-none absolute top-1 left-3 origin-top-left -translate-y-[0.55rem] scale-[0.9] bg-white px-2 text-xs text-gray-500"
+            class="pointer-events-none absolute top-1 left-3 origin-top-left translate-y-[-0.55rem] scale-[0.9] bg-white px-2 text-xs text-gray-500"
           >
             {{ $t('categoryMiscellaneous') }}
           </label>
@@ -457,7 +457,7 @@ onBeforeUnmount(() => {
       icon="mdi:close"
       variant="ghost"
       color="neutral"
-      class="absolute end-5 top-5 text-neutral-500 hover:text-neutral-900"
+      class="absolute inset-e-5 top-5 text-neutral-500 hover:text-neutral-900"
       :aria-label="$t('close')"
       @click="closeLargeView"
     />
