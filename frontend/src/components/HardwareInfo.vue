@@ -18,8 +18,13 @@ const STYLES: Record<
   typeof props.size,
   { heading: string; value: string; block: string; badge: string }
 > = {
-  normal: { heading: 'text-sm', value: 'text-sm break-words', block: '', badge: 'text-xs' },
-  large: { heading: 'text-lg', value: 'mt-1 text-lg break-words', block: 'mb-2', badge: 'text-base' }
+  normal: { heading: 'text-sm', value: 'text-sm', block: '', badge: 'text-xs' },
+  large: {
+    heading: 'text-xl',
+    value: 'text-xl',
+    block: 'mb-2',
+    badge: 'text-base'
+  }
 }
 
 function hwKey(part: string): string {
@@ -62,7 +67,7 @@ const tempText = computed(() => `${props.cpuTemp?.error != null ? '--' : props.c
     <div>
       <h2 :class="STYLES[size].heading" class="font-bold">{{ $t('hwOs') }}</h2>
 
-      <p :class="STYLES[size].value">
+      <p class="wrap-break-word" :class="STYLES[size].value">
         {{ [info.os.caption, info.os.displayVersion].filter(Boolean).join(' ') }}
         —
         {{ $t(info.os.activated ? 'osActivationActivated' : 'osActivationNotActivated') }}
