@@ -43,6 +43,12 @@ const matching = ref(false)
 
 const largeView = ref(false)
 
+// Narrowed hw+os pair for HardwareInfo; null while data is loading
+const hwInfo = computed(() => {
+  const { hw, os } = systemInfo.value
+  return hw !== null && os !== null ? { hw, os } : null
+})
+
 function onLargeViewKey(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     largeView.value = false
@@ -244,11 +250,9 @@ onBeforeUnmount(() => {
 
       <template v-if="systemInfo.hw !== null && systemInfo.os !== null">
         <HardwareInfo
-          :hw="systemInfo.hw"
-          :os="systemInfo.os"
-          size="sm"
-          :cpu-temp="cpuTemp"
-          :cpu-temp-error="cpuTempError"
+          :info="hwInfo"
+          size="normal"
+          :cpu-temp="{ value: cpuTemp, error: cpuTempError }"
         />
       </template>
 
@@ -458,13 +462,11 @@ onBeforeUnmount(() => {
       @click="closeLargeView"
     />
 
-    <div class="mx-auto max-w-4xl px-10 py-16">
+    <div class="mx-auto px-10 py-4">
       <HardwareInfo
-        :hw="systemInfo.hw!"
-        :os="systemInfo.os!"
-        size="lg"
-        :cpu-temp="cpuTemp"
-        :cpu-temp-error="cpuTempError"
+        :info="hwInfo"
+        size="large"
+        :cpu-temp="{ value: cpuTemp, error: cpuTempError }"
       />
     </div>
   </div>
