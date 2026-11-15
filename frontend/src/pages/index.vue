@@ -49,23 +49,6 @@ const hwInfo = computed(() => {
   return hw !== null && os !== null ? { hw, os } : null
 })
 
-function onLargeViewKey(e: KeyboardEvent) {
-  if (e.key === 'Escape') {
-    closeLargeView()
-  }
-}
-
-function openLargeView() {
-  loadSystemInfo()
-  largeView.value = true
-  window.addEventListener('keydown', onLargeViewKey)
-}
-
-function closeLargeView() {
-  largeView.value = false
-  window.removeEventListener('keydown', onLargeViewKey)
-}
-
 function loadSystemInfo() {
   Promise.all([utils.getHardware(), utils.getOSInfo()]).then(([hw, os]) => {
     systemInfo.value = { hw, os }
@@ -225,8 +208,6 @@ async function handleSubmit() {
 }
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onLargeViewKey)
-
   if (timer !== null) {
     clearTimeout(timer)
     timer = null
@@ -245,7 +226,12 @@ onBeforeUnmount(() => {
         class="absolute inset-e-1 top-1 z-10"
         :disabled="hwInfo === null"
         :aria-label="$t('titleLargeView')"
-        @click="openLargeView"
+        @click="
+          () => {
+            loadSystemInfo()
+            largeView = true
+          }
+        "
       />
 
       <template v-if="hwInfo !== null">
@@ -452,24 +438,32 @@ onBeforeUnmount(() => {
     </div>
   </div>
 
-  <div v-if="largeView" class="fixed inset-0 z-50 overflow-y-auto bg-white">
-    <UButton
-      icon="mdi:close"
-      variant="ghost"
-      color="neutral"
-      class="absolute inset-e-5 top-5 text-neutral-500 hover:text-neutral-900"
-      :aria-label="$t('close')"
-      @click="closeLargeView"
-    />
-
-    <div class="mx-auto px-10 py-4">
-      <HardwareInfo
-        :info="hwInfo"
-        size="large"
-        :cpu-temp="{ value: cpuTemp, error: cpuTempError }"
+  <!-- lg:max-w-none overrides the global modal content `lg:max-w-3xl` set in vite.config.ts -->
+  <UModal
+    v-model:open="largeView"
+    fullscreen
+    :close="false"
+    :ui="{ content: 'lg:max-w-none overflow-y-auto' }"
+  >
+    <template #content>
+      <UButton
+        icon="mdi:close"
+        variant="ghost"
+        color="neutral"
+        class="absolute inset-e-5 top-5 text-neutral-500 hover:text-neutral-900"
+        :aria-label="$t('close')"
+        @click="largeView = false"
       />
-    </div>
-  </div>
+
+      <div class="px-10 py-4">
+        <HardwareInfo
+          :info="hwInfo"
+          size="large"
+          :cpu-temp="{ value: cpuTemp, error: cpuTempError }"
+        />
+      </div>
+    </template>
+  </UModal>
 
   <CommandStatueModal
     ref="statusModal"
