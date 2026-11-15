@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CommandStatueModal from '@/components/CommandStatusModal.vue'
+import HardwareInfo from '@/components/HardwareInfo.vue'
 import { type Command } from '@/types/execute'
 import * as utils from '@/utils'
 import { decodeError } from '@/utils/index'
@@ -13,10 +14,6 @@ import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 
 const toast = useToast()
-
-function hwKey(part: string): string {
-  return `hw${part.charAt(0).toUpperCase() + part.slice(1)}`
-}
 
 const [statusModal, form] = [useTemplateRef('statusModal'), useTemplateRef('form')]
 
@@ -246,43 +243,13 @@ onBeforeUnmount(() => {
       />
 
       <template v-if="systemInfo.hw !== null && systemInfo.os !== null">
-        <div v-for="[part, names] in Object.entries(systemInfo.hw)" :key="part">
-          <h2 class="text-sm font-bold">
-            {{ $t(hwKey(part)) }}
-            <UBadge
-              v-if="part === 'cpu' && (cpuTemp !== null || cpuTempError !== null)"
-              size="sm"
-              class="ms-1 rounded px-1.5 py-0 text-xs font-medium"
-              :class="
-                cpuTempError !== null
-                  ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
-                  : cpuTemp! < 45
-                    ? 'bg-apple-green-100 text-apple-green-700'
-                    : cpuTemp! >= 85
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-yellow-100 text-yellow-700'
-              "
-            >
-              {{ cpuTempError !== null ? '--' : cpuTemp! }}°C
-            </UBadge>
-          </h2>
-
-          <p v-for="(name, i) in names" :key="i" class="text-sm">
-            {{ name }}
-          </p>
-        </div>
-
-        <div>
-          <h2 class="text-sm font-bold">{{ $t('hwOs') }}</h2>
-
-          <p class="text-sm">
-            {{ [systemInfo.os!.caption, systemInfo.os!.displayVersion].filter(Boolean).join(' ') }}
-            —
-            {{
-              $t(systemInfo.os!.activated ? 'osActivationActivated' : 'osActivationNotActivated')
-            }}
-          </p>
-        </div>
+        <HardwareInfo
+          :hw="systemInfo.hw"
+          :os="systemInfo.os"
+          size="sm"
+          :cpu-temp="cpuTemp"
+          :cpu-temp-error="cpuTempError"
+        />
       </template>
 
       <template v-else>
@@ -492,25 +459,13 @@ onBeforeUnmount(() => {
     />
 
     <div class="mx-auto max-w-4xl px-10 py-16">
-      <div v-for="[part, names] in Object.entries(systemInfo.hw!)" :key="part" class="mb-8">
-        <h2 class="text-2xl font-bold">
-          {{ $t(hwKey(part)) }}
-        </h2>
-
-        <p v-for="(name, i) in names" :key="i" class="mt-1 text-3xl">
-          {{ name }}
-        </p>
-      </div>
-
-      <div>
-        <h2 class="text-2xl font-bold">{{ $t('hwOs') }}</h2>
-
-        <p class="mt-1 text-3xl">
-          {{ [systemInfo.os!.caption, systemInfo.os!.displayVersion].filter(Boolean).join(' ') }}
-          —
-          {{ $t(systemInfo.os!.activated ? 'osActivationActivated' : 'osActivationNotActivated') }}
-        </p>
-      </div>
+      <HardwareInfo
+        :hw="systemInfo.hw!"
+        :os="systemInfo.os!"
+        size="lg"
+        :cpu-temp="cpuTemp"
+        :cpu-temp-error="cpuTempError"
+      />
     </div>
   </div>
 
