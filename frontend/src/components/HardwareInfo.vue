@@ -18,8 +18,8 @@ const STYLES: Record<
   typeof props.size,
   { heading: string; value: string; block: string; badge: string }
 > = {
-  normal: { heading: 'text-sm', value: 'text-sm', block: '', badge: 'text-xs' },
-  large: { heading: 'text-lg', value: 'mt-1 text-lg', block: 'mb-2', badge: 'text-base' }
+  normal: { heading: 'text-sm', value: 'text-sm break-words', block: '', badge: 'text-xs' },
+  large: { heading: 'text-lg', value: 'mt-1 text-lg break-words', block: 'mb-2', badge: 'text-base' }
 }
 
 function hwKey(part: string): string {

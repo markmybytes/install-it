@@ -51,7 +51,7 @@ const hwInfo = computed(() => {
 
 function onLargeViewKey(e: KeyboardEvent) {
   if (e.key === 'Escape') {
-    largeView.value = false
+    closeLargeView()
   }
 }
 
@@ -243,12 +243,12 @@ onBeforeUnmount(() => {
         color="neutral"
         size="xs"
         class="absolute inset-e-1 top-1 z-10"
-        :disabled="systemInfo.hw === null"
+        :disabled="hwInfo === null"
         :aria-label="$t('titleLargeView')"
         @click="openLargeView"
       />
 
-      <template v-if="systemInfo.hw !== null && systemInfo.os !== null">
+      <template v-if="hwInfo !== null">
         <HardwareInfo
           :info="hwInfo"
           size="normal"
