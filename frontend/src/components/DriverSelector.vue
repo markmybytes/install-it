@@ -9,7 +9,7 @@ const props = defineProps<{
   groupBy: 'group' | 'driver'
 }>()
 
-const model = defineModel<Array<number> | undefined>({ default: [] })
+const model = defineModel<Array<number> | undefined>({ default: () => [] })
 
 const { t: $t } = useI18n()
 
