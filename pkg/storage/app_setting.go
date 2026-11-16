@@ -22,6 +22,7 @@ type AppSetting struct {
 	AllowPreRelease        bool          `json:"allow_pre_release"`
 	EnableCPUTemp          bool          `json:"enable_cpu_temp"`
 	CPUTempRefreshInterval int           `json:"cpu_temp_refresh_interval"`
+	UIScale                int           `json:"ui_scale"`
 }
 
 type SuccessAction string
@@ -50,6 +51,7 @@ func (s *AppSettingStorage) All() (AppSetting, error) {
 				SuccessActionDelay:     5,
 				EnableCPUTemp:          false,
 				CPUTempRefreshInterval: 5,
+				UIScale:                100,
 			}
 			return s.setting, s.write()
 		}
@@ -62,6 +64,10 @@ func (s *AppSettingStorage) All() (AppSetting, error) {
 	// Backfill: legacy setting.json predates cpu_temp_refresh_interval.
 	if s.setting.CPUTempRefreshInterval <= 0 {
 		s.setting.CPUTempRefreshInterval = 5
+	}
+	// Backfill: legacy setting.json predates ui_scale.
+	if s.setting.UIScale <= 0 {
+		s.setting.UIScale = 100
 	}
 	return s.setting, nil
 }

@@ -17,6 +17,7 @@ declare module 'vue' {
     DriverFormComponent: typeof import('./src/components/DriverFormComponent.vue')['default']
     DriverInspectModal: typeof import('./src/components/DriverInspectModal.vue')['default']
     DriverSelector: typeof import('./src/components/DriverSelector.vue')['default']
+    HardwareInfo: typeof import('./src/components/HardwareInfo.vue')['default']
     LoadingOverlay: typeof import('./src/components/LoadingOverlay.vue')['default']
     MatchRuleFormComponent: typeof import('./src/components/MatchRuleFormComponent.vue')['default']
     MatchRuleInputModal: typeof import('./src/components/MatchRuleInputModal.vue')['default']

@@ -192,6 +192,7 @@ export namespace storage {
 	    allow_pre_release: boolean;
 	    enable_cpu_temp: boolean;
 	    cpu_temp_refresh_interval: number;
+	    ui_scale: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppSetting(source);
@@ -212,6 +213,7 @@ export namespace storage {
 	        this.allow_pre_release = source["allow_pre_release"];
 	        this.enable_cpu_temp = source["enable_cpu_temp"];
 	        this.cpu_temp_refresh_interval = source["cpu_temp_refresh_interval"];
+	        this.ui_scale = source["ui_scale"];
 	    }
 	}
 	export class Driver {

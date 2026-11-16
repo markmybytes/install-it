@@ -32,6 +32,9 @@ func TestAppSettingStorage_AllWithoutExistingFile(t *testing.T) {
 	if result.SuccessActionDelay != 5 {
 		t.Errorf("expected SuccessActionDelay to be 5, got %d", result.SuccessActionDelay)
 	}
+	if result.UIScale != 100 {
+		t.Errorf("expected UIScale to be 100, got %d", result.UIScale)
+	}
 }
 
 func TestAppSettingStorage_AllWithExistingFile(t *testing.T) {
@@ -212,6 +215,10 @@ func TestLegacySettingMigration(t *testing.T) {
 	}
 	if result.AutoCheckUpdate != true {
 		t.Errorf("AutoCheckUpdate = %v, want true", result.AutoCheckUpdate)
+	}
+	// Legacy files also predate ui_scale, which backfills to 100.
+	if result.UIScale != 100 {
+		t.Errorf("UIScale = %d, want 100", result.UIScale)
 	}
 }
 

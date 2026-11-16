@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CommandStatueModal from '@/components/CommandStatusModal.vue'
+import HardwareInfo from '@/components/HardwareInfo.vue'
 import { type Command } from '@/types/execute'
 import * as utils from '@/utils'
 import { decodeError } from '@/utils/index'
@@ -13,10 +14,6 @@ import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 
 const toast = useToast()
-
-function hwKey(part: string): string {
-  return `hw${part.charAt(0).toUpperCase() + part.slice(1)}`
-}
 
 const [statusModal, form] = [useTemplateRef('statusModal'), useTemplateRef('form')]
 
@@ -43,6 +40,14 @@ const selectedNetwork = ref<number>(0)
 const selectedDisplay = ref<number>(0)
 const selectedMiscellaneous = ref<number[]>([])
 const matching = ref(false)
+
+const largeView = ref(false)
+
+// Narrowed hw+os pair for HardwareInfo; null while data is loading
+const hwInfo = computed(() => {
+  const { hw, os } = systemInfo.value
+  return hw !== null && os !== null ? { hw, os } : null
+})
 
 function loadSystemInfo() {
   Promise.all([utils.getHardware(), utils.getOSInfo()]).then(([hw, os]) => {
@@ -212,45 +217,29 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex h-full flex-col">
-    <div class="flex flex-1 flex-col gap-y-1 overflow-y-auto rounded-sm border p-1">
-      <template v-if="systemInfo.hw !== null && systemInfo.os !== null">
-        <div v-for="[part, names] in Object.entries(systemInfo.hw)" :key="part">
-          <h2 class="text-sm font-bold">
-            {{ $t(hwKey(part)) }}
-            <UBadge
-              v-if="part === 'cpu' && (cpuTemp !== null || cpuTempError !== null)"
-              size="sm"
-              class="ms-1 rounded px-1.5 py-0 text-xs font-medium"
-              :class="
-                cpuTempError !== null
-                  ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
-                  : cpuTemp! < 45
-                    ? 'bg-apple-green-100 text-apple-green-700'
-                    : cpuTemp! >= 85
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-yellow-100 text-yellow-700'
-              "
-            >
-              {{ cpuTempError !== null ? '--' : cpuTemp! }}°C
-            </UBadge>
-          </h2>
+    <div class="relative flex flex-1 flex-col gap-y-1 overflow-y-auto rounded-sm border p-1">
+      <UButton
+        icon="mdi:fullscreen"
+        variant="ghost"
+        color="neutral"
+        size="xs"
+        class="absolute inset-e-1 top-1 z-10"
+        :disabled="hwInfo === null"
+        :aria-label="$t('titleLargeView')"
+        @click="
+          () => {
+            loadSystemInfo()
+            largeView = true
+          }
+        "
+      />
 
-          <p v-for="(name, i) in names" :key="i" class="text-sm">
-            {{ name }}
-          </p>
-        </div>
-
-        <div>
-          <h2 class="text-sm font-bold">{{ $t('hwOs') }}</h2>
-
-          <p class="text-sm">
-            {{ [systemInfo.os!.caption, systemInfo.os!.displayVersion].filter(Boolean).join(' ') }}
-            —
-            {{
-              $t(systemInfo.os!.activated ? 'osActivationActivated' : 'osActivationNotActivated')
-            }}
-          </p>
-        </div>
+      <template v-if="hwInfo !== null">
+        <HardwareInfo
+          :info="hwInfo"
+          size="normal"
+          :cpu-temp="{ value: cpuTemp, error: cpuTempError }"
+        />
       </template>
 
       <template v-else>
@@ -320,7 +309,7 @@ onBeforeUnmount(() => {
       <div class="flex flex-1">
         <div class="relative mb-3 h-full w-full">
           <label
-            class="pointer-events-none absolute top-1 left-3 origin-top-left -translate-y-[0.55rem] scale-[0.9] bg-white px-2 text-xs text-gray-500"
+            class="pointer-events-none absolute top-1 left-3 origin-top-left translate-y-[-0.55rem] scale-[0.9] bg-white px-2 text-xs text-gray-500"
           >
             {{ $t('categoryMiscellaneous') }}
           </label>
@@ -448,6 +437,33 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </div>
+
+  <!-- lg:max-w-none overrides the global modal content `lg:max-w-3xl` set in vite.config.ts -->
+  <UModal
+    v-model:open="largeView"
+    fullscreen
+    :close="false"
+    :ui="{ content: 'lg:max-w-none overflow-y-auto' }"
+  >
+    <template #content>
+      <UButton
+        icon="mdi:close"
+        variant="ghost"
+        color="neutral"
+        class="absolute inset-e-5 top-5 text-neutral-500 hover:text-neutral-900"
+        :aria-label="$t('close')"
+        @click="largeView = false"
+      />
+
+      <div class="px-10 py-4">
+        <HardwareInfo
+          :info="hwInfo"
+          size="large"
+          :cpu-temp="{ value: cpuTemp, error: cpuTempError }"
+        />
+      </div>
+    </template>
+  </UModal>
 
   <CommandStatueModal
     ref="statusModal"
