@@ -3,7 +3,7 @@ import { ref } from 'vue'
 
 defineProps<{ title?: string }>()
 
-const tags = defineModel<Array<string>>({ default: [] })
+const tags = defineModel<Array<string>>({ default: () => [] })
 
 const input = ref<string>('')
 
