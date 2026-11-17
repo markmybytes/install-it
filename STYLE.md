@@ -29,8 +29,6 @@ Run apply commands before check commands. Never hand-fix what a command can fix.
 | Frontend | `cd frontend && npm run lint`, `npm run format` | `cd frontend && npm run format:check`, `npm run type-check` |
 | Go | `go fmt ./...` | `go vet ./...` |
 
-Lint rules live in `frontend/eslint.config.js`; formatting rules live in `frontend/.prettierrc.json`. Rules those tools enforce are not restated here.
-
 ## Frontend: Vue / TypeScript conventions
 
 - Prefer `ref` over `reactive`. Group related parameters into unified object refs by context:
