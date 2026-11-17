@@ -46,5 +46,23 @@ export default defineConfigWithVueTs(
       ]
     }
   },
+  {
+    files: ['src/__tests__/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        projectService: false
+      }
+    }
+  },
+  {
+    files: ['src/**/*.{ts,vue}', '!src/__tests__/**'],
+    rules: {
+      '@typescript-eslint/naming-convention': [
+        'error',
+        { selector: 'function', format: ['camelCase'] },
+        { selector: 'typeLike', format: ['PascalCase'] }
+      ]
+    }
+  },
   skipFormatting
 )
