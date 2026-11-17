@@ -13,7 +13,13 @@ This file is the source of truth for coding conventions and style rules.
 | Database columns / JSON fields | `snake_case` | `driver_group_id` |
 | i18n translation keys | flat `camelCase` with semantic prefix | `toastSaved`, `hwCpu`, `opContain` |
 
-Go uses casing for visibility: `camelCase` is unexported, `PascalCase` is exported.
+## General conventions
+
+- Keep logic inline until it exceeds ~100 lines, needs reuse across entry points, or is complex enough to warrant an isolated test.
+- A single-use helper needs a test in the same change.
+- Avoid intermediate variables when the direct expression stays readable.
+- Ask for clarification when requirements are ambiguous.
+- Run `npm run lint` and `npm run format` before hand-fixing frontend style issues; use `go fmt` and `go vet` on changed Go packages.
 
 ## Frontend: Vue / TypeScript conventions
 
@@ -24,8 +30,8 @@ Go uses casing for visibility: `camelCase` is unexported, `PascalCase` is export
 - Use named functions for component methods and root handlers. Reserve arrow functions for inline handlers, callbacks, and promise chains.
 - Prefer `.then().catch()` chains for Wails binding calls; use `async/await` only when it genuinely simplifies the logic.
 - Use flex or grid layout with Tailwind gap utilities (`gap-x-2`, `gap-y-3`) and Nuxt UI v4 components (`UButton`, `UInput`, `USelect`, `UModal`, …) as building blocks.
-- This is a Wails desktop app. The window minimum is `640x480` and the default is `768x576` (`main.go`); there is no enforced upper bound. Layout uses `md:` and `xl:` only — `sm:` is always on at a 640 minimum, and `lg:` would add a fourth state.
-- Use flat camelCase i18n keys with no dots. The prefix names the string's nature, not where it appears: `action`, `buildType`, `category`, `desc`, `err`, `field`, `hw`, `label`, `msg`, `op`, `setting`, `status`/`statusShort`, `step`, `title`, `toast`, `tool`, `warn`.
+- Use `md:` and `xl:` breakpoints only; skip `sm:` and `lg:`.
+- Prefix i18n keys by what the string is, not where it appears — for example `action*`, `hw*`, `toast*`. See `frontend/src/i18n/en.json`.
 - Use setup stores (factory function returning refs). No Options API.
 
 ## Backend: Go conventions

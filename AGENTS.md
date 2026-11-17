@@ -16,16 +16,14 @@ Run from repository root. Apply fixes before verification.
 
 | Scope | Fix | Verify |
 | --- | --- | --- |
-| Install | `cd frontend && npm install` | `wails version` |
+| Toolchain | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` | `wails version` |
+| Frontend deps | `cd frontend && npm install` | — |
 | Go | `go fmt ./...` | `go vet ./...`; `go test ./pkg/...` |
 | Generated data | `go generate ./pkg/sysinfo/...` | — |
 | Frontend | `cd frontend && npm run lint && npm run format` | `cd frontend && npm run format:check`; `cd frontend && npm run type-check`; `cd frontend && npm test` |
 | Build | — | `wails build` |
 
-- Install Wails with `go install github.com/wailsapp/wails/v2/cmd/wails@latest`.
-- `wails dev` hot-reloads Go and Vue. Version stamping uses `wails build -ldflags "-X main.buildVersion=<version>"`.
-- CI runs `go vet ./...`, `go generate ./pkg/sysinfo/...`, and `go test ./pkg/...`; frontend CI runs `npm run lint`, `npm run format:check`, `npm run type-check`, and `npm test`.
-- Frontend CI checks Prettier formatting; local ESLint does not catch it. Run `npm run format` before pushing.
+- Local ESLint does not catch Prettier issues; CI does. Run `npm run format` before pushing.
 
 ## Testing and verification
 
@@ -50,5 +48,3 @@ Run from repository root. Apply fixes before verification.
 - Hand-edit `frontend/wailsjs/**`.
 - Modify `.github/workflows/**` without explicit human instruction.
 - Modify `vendor/**`, `node_modules/**`, or installed dependency contents.
-
-Architecture and domain contracts live in [ARCHITECTURE.md](ARCHITECTURE.md).

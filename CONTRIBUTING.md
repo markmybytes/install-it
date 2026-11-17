@@ -4,8 +4,6 @@ See [README.md](README.md) for setup and development commands.
 
 This file is the source of truth for the contribution workflow.
 
-Before making any code change, read [ARCHITECTURE.md](ARCHITECTURE.md).
-
 ## Branches and commits
 
 Branch from `main`. Keep one concern per branch.
@@ -24,7 +22,7 @@ Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`, and `per
 
 - Keep one concern per pull request.
 - Explain what changed, why, and any important design decisions.
-- Follow [STYLE.md](STYLE.md) and run the verification commands in [AGENTS.md](AGENTS.md).
+- Follow [STYLE.md](STYLE.md). Verify locally: `go vet ./...`, `go test ./pkg/...`; in `frontend/`, `npm run lint`, `npm run format:check`, `npm run type-check`, `npm test`.
 - Address review feedback before merge.
 
 Before submitting:

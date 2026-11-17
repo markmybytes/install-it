@@ -69,8 +69,8 @@ Beyond drivers, installing softwares, and executing commands are also possible i
 
 ### Prerequisites
 
-- Go — version in [go.mod](go.mod); install from https://go.dev/doc/install
-- Node — version pinned by Volta in [frontend/package.json](frontend/package.json); install from https://nodejs.org/en/download/package-manager
+- Go
+- Volta
 
 ### Setup
 
