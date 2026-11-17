@@ -9,7 +9,7 @@
   [![Forks][forks-shield]][forks-url]
   [![Stargazers][stars-shield]][stars-url]
   [![Issues][issues-shield]][issues-url]
-  [![MIT License][license-shield]][license-url]
+  [![GPL-2.0 License][license-shield]][license-url]
 
 </div>
 
@@ -25,16 +25,12 @@
   <p align="center">
     A Driver/Software Installation Tool
     <br>
-    <a href="https://github.com/markmybytes/install-it/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+    <a href="https://github.com/markmybytes/install-it/issues/new?labels=bug">Report Bug</a>
     ·
-    <a href="https://github.com/markmybytes/install-it/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    <a href="https://github.com/markmybytes/install-it/issues/new?labels=enhancement">Request Feature</a>
   </p>
 
-  <p align="center">
-    <a href="https://github.com/markmybytes/install-it">English</a>
-    ·
-    <a href="https://github.com/markmybytes/install-it/readme/README.zh_Hant.md">繁體中文</a>
-  </p>
+
 </div>
 
 
@@ -73,8 +69,8 @@ Beyond drivers, installing softwares, and executing commands are also possible i
 
 ### Prerequisites
 
-- Go ≥ 1.23 https://go.dev/doc/install
-- Node 22 https://nodejs.org/en/download/package-manager
+- Go — version in [go.mod](go.mod); install from https://go.dev/doc/install
+- Node — version pinned by Volta in [frontend/package.json](frontend/package.json); install from https://nodejs.org/en/download/package-manager
 
 ### Setup
 
@@ -102,9 +98,6 @@ Beyond drivers, installing softwares, and executing commands are also possible i
 - Build Executable
   ```sh
   wails build
-
-  # build with version number set
-  wails build -ldflags "-X main.buildVersion=<version number>"
   ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -119,7 +112,7 @@ Beyond drivers, installing softwares, and executing commands are also possible i
 
 To add an installer into install-it:
 
-1. Place all your installer under the `driver/<category>` folder
+1. Place all your installer under the `drivers/<category>` folder
 2. Create a installer group
    - you can add multiple installer into a single group
    - install-it predefined three categories: `network`, `display`, and `miscellaneous`, only `miscellaneous` allow multiple selection
@@ -185,6 +178,13 @@ Select all the suitable software in the home page and click `Execute`. A popup w
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
+## Documentation
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) — System design, code placement, and domain contracts
+- [CONTRIBUTING.md](CONTRIBUTING.md) — Branches, commits, and PRs
+- [STYLE.md](STYLE.md) — Coding conventions
+
+
 <!-- MARKDOWN LINKS & IMAGES -->
 [tag-url]: https://github.com/markmybytes/install-it/releases
 [tag-shield]: https://img.shields.io/github/v/tag/markmybytes/install-it?style=for-the-badge&label=LATEST&color=%23B1B1B1
@@ -197,4 +197,4 @@ Select all the suitable software in the home page and click `Execute`. A popup w
 [issues-shield]: https://img.shields.io/github/issues/markmybytes/install-it.svg?style=for-the-badge
 [issues-url]: https://github.com/markmybytes/install-it/issues
 [license-shield]: https://img.shields.io/github/license/markmybytes/install-it.svg?style=for-the-badge
-[license-url]: https://github.com/markmybytes/install-it/blob/master/LICENSE
+[license-url]: https://github.com/markmybytes/install-it/blob/main/LICENSE

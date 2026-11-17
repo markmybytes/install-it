@@ -2,17 +2,17 @@
 
 See [README.md](README.md) for setup and development commands.
 
-## Before You Start
+This file is the source of truth for the contribution workflow.
 
-- Check existing issues and pull requests before opening a new one.
-- Discuss substantial feature changes before implementation.
-- Branch from the repository's default branch.
+Before making any code change, read [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Branches and Commits
+## Branches and commits
 
-Use a descriptive branch name. Keep each branch focused on one concern.
+Branch from `main`. Keep one concern per branch.
 
-Use [Conventional Commits](https://www.conventionalcommits.org/):
+Name branches `<type>/<kebab-slug>`, where the type matches the Conventional Commits type set — for example `feat/hw-large-view` or `fix/sidebar-icon-tweaks`. Current branches follow this, so the prefix keeps history scannable.
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```text
 <type>(<scope>): <description>
@@ -20,16 +20,20 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 
 Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`, and `perf`. Use `!` or a `BREAKING CHANGE:` footer for breaking changes.
 
-## Pull Requests
+## Pull requests
 
 - Keep one concern per pull request.
 - Explain what changed, why, and any important design decisions.
-- Add or update tests for behavior changes and bug fixes.
-- Update documentation when behavior, commands, or public interfaces change.
-- Run the verification commands from [README.md](README.md) and follow [STYLE.md](STYLE.md) before pushing.
+- Follow [STYLE.md](STYLE.md) and run the verification commands in [AGENTS.md](AGENTS.md).
 - Address review feedback before merge.
+
+Before submitting:
+
+- [ ] Tests added or updated for changed behavior
+- [ ] Verification commands pass
+- [ ] Documentation updated when behavior, commands, or public interfaces changed
 
 ## Issues
 
-- [Report a bug](https://github.com/markmybytes/install-it/issues/new?labels=bug&template=bug-report---.md) — include versions, environment details, and a minimal reproduction.
-- [Request a feature](https://github.com/markmybytes/install-it/issues/new?labels=enhancement&template=feature-request---.md) — describe the problem, not just the solution.
+- [Report a bug](https://github.com/markmybytes/install-it/issues/new?labels=bug) — include versions, environment details, and a minimal reproduction.
+- [Request a feature](https://github.com/markmybytes/install-it/issues/new?labels=enhancement) — describe the problem, not just the solution.
