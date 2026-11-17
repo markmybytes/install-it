@@ -22,7 +22,7 @@ Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`, and `per
 
 - Keep one concern per pull request.
 - Explain what changed, why, and any important design decisions.
-- Follow [STYLE.md](STYLE.md). Verify locally: `go vet ./...`, `go test ./pkg/...`; in `frontend/`, `npm run lint`, `npm run format:check`, `npm run type-check`, `npm test`.
+- Follow the formatting rules in [STYLE.md](STYLE.md). Verify locally: `go test ./pkg/...`; in `frontend/`, `npm test`.
 - Address review feedback before merge.
 
 Before submitting:

@@ -22,7 +22,6 @@ Standard Go and Vue/Vite layout follows official conventions; only project-speci
 
 ### SQLite
 
-- Keep the dependency set CGO-free.
 - Route schema changes through `gormigrate/v2` migrations in `pkg/storage/db.go`. Never call `AutoMigrate` outside a migration.
 - Keep app settings in `conf/setting.json` through `FileStore` / `MemoryStore`, not in SQLite.
 

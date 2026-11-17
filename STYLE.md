@@ -18,27 +18,84 @@ This file is the source of truth for coding conventions and style rules.
 - Keep logic inline until it exceeds ~100 lines, needs reuse across entry points, or is complex enough to warrant an isolated test.
 - A single-use helper needs a test in the same change.
 - Avoid intermediate variables when the direct expression stays readable.
-- Ask for clarification when requirements are ambiguous.
-- Run `npm run lint` and `npm run format` before hand-fixing frontend style issues; use `go fmt` and `go vet` on changed Go packages.
+- Run the commands below before hand-fixing a style issue.
+
+## Formatting and linting
+
+Run apply commands before check commands. Never hand-fix what a command can fix.
+
+| Scope | Apply | Check |
+| --- | --- | --- |
+| Frontend | `cd frontend && npm run lint`, `npm run format` | `cd frontend && npm run format:check`, `npm run type-check` |
+| Go | `go fmt ./...` | `go vet ./...` |
+
+Lint rules live in `frontend/eslint.config.js`; Prettier rules live in the Prettier config.
 
 ## Frontend: Vue / TypeScript conventions
 
 - Use TypeScript and `<script setup lang="ts">`. No Options API.
 - Use type-based props and emits: `defineProps<{ ... }>()`, `defineEmits<{ ... }>()`.
 - Order blocks `<script>` → `<template>` → `<style>`, with blank lines between template tags (`vue/padding-line-between-tags`).
-- Prefer `ref` over `reactive`. Group related parameters into unified object refs by context: `ref({ name, email })` beats separate refs for one form.
+- Prefer `ref` over `reactive`. Group related parameters into unified object refs by context:
+
+```typescript
+// Good — grouped by concern
+const form = ref({ name: '', email: '' })
+const ui = ref({ loading: false, showModal: false })
+
+// Avoid — separate refs for related state
+const loading = ref(false)
+const showModal = ref(false)
+```
+
 - Use named functions for component methods and root handlers. Reserve arrow functions for inline handlers, callbacks, and promise chains.
+
+```typescript
+function handleSubmit() {
+  ruleSetStorage.Add(ruleSet.value)
+    .then(handleSuccess)
+    .catch(reason => toast.add({ title: reason.toString(), color: 'error' }))
+}
+
+// Inline handler
+<button @click="() => ui.showModal = true">Open</button>
+```
+
 - Prefer `.then().catch()` chains for Wails binding calls; use `async/await` only when it genuinely simplifies the logic.
+
+```typescript
+async function loadDrivers() {
+  const groups = await driverGroupStorage.All()
+  // ...
+}
+```
+
 - Use flex or grid layout with Tailwind gap utilities (`gap-x-2`, `gap-y-3`) and Nuxt UI v4 components (`UButton`, `UInput`, `USelect`, `UModal`, …) as building blocks.
 - Use `md:` and `xl:` breakpoints only; skip `sm:` and `lg:`.
 - Prefix i18n keys by what the string is, not where it appears — for example `action*`, `hw*`, `toast*`. See `frontend/src/i18n/en.json`.
 - Use setup stores (factory function returning refs). No Options API.
 
+```typescript
+export default defineStore('driverGroup', () => {
+  const groups = ref<storage.DriverGroup[]>([])
+  return { groups }
+})
+```
+
 ## Backend: Go conventions
 
-- Use `go fmt` before committing. Run `go vet` on changed packages.
 - Keep execution logic straightforward and procedural until reuse is clear.
 - Return errors explicitly; do not silently ignore them with `_`.
+
+```go
+// Good
+if err := db.Open(); err != nil {
+    return fmt.Errorf("opening db: %w", err)
+}
+
+// Avoid
+_ = db.Open()
+```
 
 ## Generated files
 

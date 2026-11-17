@@ -12,18 +12,16 @@ Windows PC setup assistant and driver installer. Wails v2 desktop app: Go backen
 
 ## Commands
 
-Run from repository root. Apply fixes before verification.
+Run from repository root. Formatting and linting commands are in [STYLE.md](STYLE.md).
 
 | Scope | Fix | Verify |
 | --- | --- | --- |
 | Toolchain | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` | `wails version` |
 | Frontend deps | `cd frontend && npm install` | — |
-| Go | `go fmt ./...` | `go vet ./...`; `go test ./pkg/...` |
+| Go | — | `go test ./pkg/...` |
 | Generated data | `go generate ./pkg/sysinfo/...` | — |
-| Frontend | `cd frontend && npm run lint && npm run format` | `cd frontend && npm run format:check`; `cd frontend && npm run type-check`; `cd frontend && npm test` |
+| Frontend | — | `cd frontend && npm test` |
 | Build | — | `wails build` |
-
-- Local ESLint does not catch Prettier issues; CI does. Run `npm run format` before pushing.
 
 ## Testing and verification
 
